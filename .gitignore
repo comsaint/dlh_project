@@ -44,3 +44,4 @@ Thumbs.db
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 */.ipynb_checkpoints/*.ipynb
+__pycache__
