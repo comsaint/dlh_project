@@ -1,8 +1,5 @@
 
-pip install --upgrade pip
-
-pip install pandas
-pip install kaggle
+pip install -r requirements.txt
 
 rm -rf data/raw/*
 kaggle datasets download -d nih-chest-xrays/data -p data/raw/

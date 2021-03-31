@@ -1,5 +1,8 @@
 pip install --upgrade pip
+
 pip install pandas
 pip install torch
 pip install torchvision
 pip install sklearn
+pip install kaggle
+
