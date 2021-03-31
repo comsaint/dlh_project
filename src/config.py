@@ -2,7 +2,7 @@ ROOT_PATH='../'
 
 SRC_DIR='src/'
 DATA_DIR='data/'
-MODEL_DIR='model/'
+MODEL_DIR='models/'
 INPUT_DATA_DIR='data/raw'
 OUTPUT_DATA_DIR='data/processed'
 

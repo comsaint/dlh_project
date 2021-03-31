@@ -83,33 +83,6 @@ def load_data(dataframe, transform=None, batch_size=32, shuffle=True, num_worker
     loader = torch.utils.data.DataLoader(image_data, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin)
     return loader
 
-class NihDataset(Dataset):
-    def __init__(self, dataframe, transform=None):
-        
-        self.dataframe = dataframe
-        self.transform = transform
-        
-    def __len__(self):
-        return len(self.dataframe)
-    
-    def __getitem__(self, idx):
-        image  = Image.open(self.dataframe.loc[idx, 'Image_path']).convert('L')  # via .getband(), some images are know to have 4 channels. Here we convert them to 1-channel grayscale.
-        target = self.dataframe.loc[idx, 'Labels']
-            
-        if self.transform:
-            image = self.transform(image)
-        
-        return image, target
-
-def load_data(dataframe, transform=None, batch_size=32, shuffle=True, num_workers=4):
-    '''
-    Data Loader with batch loading and transform.
-    '''
-    image_data = NihDataset(dataframe, transform=transform)
-    pin = device=='cpu'
-    num_workers=num_workers*int(device!='cpu')
-    loader = torch.utils.data.DataLoader(image_data, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin)
-    return loader
 
 class SimpleNet(nn.Module):
     def __init__(self, len_out=14):
@@ -238,10 +211,6 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
 
 def run(disease_filter_list=None, position_filter_list=None,num_epochs=config.NUM_EPOCHS):
     
-    print(f"Num Epochs        : {num_epochs}")
-    print(f"Num Classes       : {len(disease_filter_list)}")
-    print(f"Target Class List : {disease_filter_list}\n")
-    
     df_data , labels      = dp.load_data()
     
     if disease_filter_list:
@@ -251,12 +220,15 @@ def run(disease_filter_list=None, position_filter_list=None,num_epochs=config.NU
     if position_filter_list:
         df_data = df_data[df_data['View Position'].isin(position_filter_list)]
     
-    df_data , dict_labels = dp.multi_hot_label(df_data, labels)
-    df_train, df_test     = dp.make_train_test_split(df_data)
+    print(f"Num Epochs        : {num_epochs}")
+    print(f"Num Classes       : {len(labels)}")
+    print(f"Target Class List : {labels}\n")
     
-    df_dev, df_val   = dp.train_test_split(df_test) 
-    df_train, df_dev, df_val = df_train.reset_index(drop=True), df_dev.reset_index(drop=True), df_val.reset_index(drop=True)
-
+    df_data, dict_labels = dp.multi_hot_label(df_data, labels)
+    df_train, df_test    = dp.make_train_test_split(df_data)
+    
+    df_train, df_val   = dp.train_test_split(df_train) 
+    
     model = SimpleNet(len(dict_labels)).to(device)
 
     criterion = nn.CrossEntropyLoss()  # change to CrossEntropyLoss if  multiclass
@@ -265,7 +237,7 @@ def run(disease_filter_list=None, position_filter_list=None,num_epochs=config.NU
     num_epochs = config.NUM_EPOCHS
     
     train_data_loader = load_data(df_train, transform=data_transforms['train'], shuffle=False, batch_size=config.TRAIN_BATCH_SIZE  ,  num_workers=config.TRAIN_WORKERS)
-    val_data_loader   = load_data(df_dev  , transform=data_transforms['test'] , shuffle=False, batch_size=config.VAL_BATCH_SIZE  , num_workers=config.VAL_WORKERS)
+    val_data_loader   = load_data(df_val  , transform=data_transforms['test'] , shuffle=False, batch_size=config.VAL_BATCH_SIZE  , num_workers=config.VAL_WORKERS)
 
     model = train_model(model, train_data_loader, val_data_loader, criterion, optimizer)
 

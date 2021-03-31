@@ -62,14 +62,22 @@ def draw_image (df, i=random.randint(0,99999)) :
 
 
 
-def load_data():
-  df_indices = load_image_paths()
-  #df_indices = df_indices[df_indices['Finding Labels']!='No Finding']
-  lst_labels = load_image_labels(df_indices)
-  lst_labels.remove('No Finding')
+def load_data(disease_filter_list=None, position_filter_list=None):
+    df_indices = load_image_paths()
+    lst_labels = load_image_labels(df_indices)
+    lst_labels.remove('No Finding')
     
-  df_data  = df_indices[['Patient ID','Patient Age','Patient Gender','Follow Up','View Position','Image Index','Image_path','Finding Labels']]
-  return df_data, lst_labels
+    df_data  = df_indices[['Patient ID','Patient Age','Patient Gender','Follow Up','View Position','Image Index','Image_path','Finding Labels']]
+
+    if disease_filter_list:
+        lst_labels = disease_filter_list
+        #df_data = df_data[df_data['Finding Labels'].isin(disease_filter_list)]
+          
+    if position_filter_list:
+        df_data = df_data[df_data['View Position'].isin(position_filter_list)]
+        
+    return df_data, lst_labels
+
     
 def multi_hot_label(df_data, labels):
   mb = MultiLabelBinarizer(sparse_output=True)
@@ -83,31 +91,32 @@ def multi_hot_label(df_data, labels):
   return df_data, dict_labels
 
 
-def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, test_val_list_file=config.TEST_VAL_FILE,root_dir=config.ROOT_PATH, data_dir=config.INPUT_DATA_DIR):
-  with open(os.path.join(root_dir, data_dir, train_val_list_file)) as f:
-    train_val_list = [x.strip() for x in f.readlines()]
+def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, test_val_list_file=config.TEST_VAL_FILE, root_dir=config.ROOT_PATH, data_dir=config.INPUT_DATA_DIR):
+    with open(os.path.join(root_dir, data_dir, train_val_list_file)) as f:
+        train_val_list = [x.strip() for x in f.readlines()]
     
-  with open(os.path.join(root_dir, data_dir, test_val_list_file)) as f:
-    test_val_list  = [x.strip() for x in f.readlines()]
+    with open(os.path.join(root_dir, data_dir, test_val_list_file)) as f:
+        test_val_list  = [x.strip() for x in f.readlines()]
         
-  df_train = df_data[df_data['Image Index'].isin(train_val_list)]
-  df_valid = df_data[df_data['Image Index'].isin(test_val_list)]    
-  
-  df_train.reset_index(drop=True)
-  df_valid.reset_index(drop=True)
-  
-  return df_train, df_valid
+    df_train = df_data[df_data['Image Index'].isin(train_val_list)]
+    df_valid = df_data[df_data['Image Index'].isin(test_val_list)]    
+    df_train.reset_index(drop=True)
+    df_valid.reset_index(drop=True)
+    
+    return df_train.reset_index(drop=True), df_valid.reset_index(drop=True)
   
 def train_test_split(df, test_size=config.TEST_SIZE):
-  return model_selection.train_test_split(df, test_size=test_size, random_state=config.SEED)
+    df_train, df_test = model_selection.train_test_split(df, test_size=test_size, random_state=config.SEED)
+    
+    return df_train.reset_index(drop=True), df_test.reset_index(drop=True)
 
 
 def main():
-  df_data, labels = load_data()
-  df_data, dict_labels = multi_hot_label(df_data, labels)
-  df_train, df_test = train_test_split(df_data)
+    df_data, labels = load_data()
+    df_data, dict_labels = multi_hot_label(df_data, labels)
+    df_train, df_test = train_test_split(df_data)
     
 if __name__ == "__main__":
-  main()
+    main()
     
     
