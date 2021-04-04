@@ -44,3 +44,7 @@ Thumbs.db
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 */.ipynb_checkpoints/*.ipynb
+
+# my ignored files #
+*.pth
+.idea/*
