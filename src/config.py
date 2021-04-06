@@ -4,10 +4,9 @@ ROOT_PATH='../'
 SRC_DIR='src/'
 DATA_DIR='data/'
 MODEL_DIR='models/'
-INPUT_DATA_DIR='data/raw'
-OUTPUT_DATA_DIR='data/processed'
+PROCESSED_DATA_DIR='data/processed'
 
-INDEX_FILE = 'Data_Entry_2017_v2020.csv'
+INDEX_FILE = 'Data_Entry_2017.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
 
@@ -20,7 +19,7 @@ SEED=1
 VAL_SIZE=0.1
 NUM_WORKERS=12
 
-NUM_EPOCHS=10
+NUM_EPOCHS=30
 LEARNING_RATE=0.005
 BATCH_SIZE=64
 

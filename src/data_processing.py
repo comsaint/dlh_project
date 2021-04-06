@@ -25,7 +25,7 @@ from sklearn import model_selection
 random.seed(config.SEED)
 
 
-def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.DATA_DIR, index_file=config.INDEX_FILE, sampling=config.SAMPLING):
+def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR, index_file=config.INDEX_FILE, sampling=config.SAMPLING):
     """
     load the data file (with image indices, image path, labels etc.)
     """
@@ -66,7 +66,7 @@ def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.DATA_DIR, index_fi
 
 
 def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, test_list_file=config.TEST_FILE,
-                          root_dir=config.ROOT_PATH, data_dir=config.INPUT_DATA_DIR):
+                          root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR):
     with open(os.path.join(root_dir, data_dir, train_val_list_file)) as f:
         train_val_list = [x.strip() for x in f.readlines()]
 

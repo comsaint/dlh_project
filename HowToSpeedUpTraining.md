@@ -32,7 +32,7 @@ To dive deeper, you can find more information of `torch.utils.bottleneck` online
 2. Make sure you have GPU(s). Tough luck without one.
 
 ## Software
-1. In my case, the bottleneck was on loading images (even from SSD). I have not find a solution on Windows machine, but on Ubuntu (or Mac) a big boost is to replace the `pillow` package with `pillow-SIMD`, which is the default package in `requirements.txt`. In my case, it shortens training time by **10x**.
+1. In my case, the bottleneck was on loading images (even from SSD). I have not find a solution on Windows machine, but on Ubuntu or Mac a big boost is to replace the `pillow` package with `pillow-SIMD`, which is the default package in `requirements.txt`. In my case, it shortens training time by **10x**.
 2. Increasing `NUM_WORKERS` and/or lowering `TRAIN_BATCH_SIZE` may also help. However, note that changing `TRAIN_BATCH_SIZE` may impact accuracy.
 
 

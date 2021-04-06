@@ -1,0 +1,25 @@
+These labels are intended for research and educational purposes only.
+
+When using these labels, please include the following citation:
+
+Anna Majkowska, Sid Mittal, David F. Steiner, Joshua J. Reicher, Scott Mayer
+McKinney, Gavin E. Duggan, Krish Eswaran, PoHsuan Cameron Chen, Yun Liu,
+Sreenivasa Raju Kalidindi, Alexander Ding, Greg S. Corrado,
+Daniel Tse, Shravya Shetty, Chest Radiograph Interpretation Using
+Deep Learning Models: Assessment Using Radiologist Adjudicated Reference
+Standards and Population-Adjusted Evaluation, Radiology, 2019.
+
+There are no restrictions on the use of the NIH chest x-ray images. However, the
+dataset has the following attribution requirements:
+
+  * Provide a link to the NIH download site:
+    https://nihcc.app.box.com/v/ChestXray-NIHCC
+
+  * Include a citation to the CVPR 2017 paper:
+
+    Xiaosong Wang, Yifan Peng, Le Lu, Zhiyong Lu, Mohammadhadi Bagheri, Ronald
+    Summers, ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks
+    on Weakly-Supervised Classification and Localization of Common Thorax
+    Diseases, IEEE CVPR, pp. 3462-3471, 2017.
+
+  * Acknowledge that the NIH Clinical Center is the data provider.

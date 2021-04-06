@@ -48,3 +48,5 @@ Thumbs.db
 # my ignored files #
 *.pth
 .idea/*
+data/raw/*
+data/processed/*.png

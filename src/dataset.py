@@ -1,22 +1,20 @@
 import sys
-
-sys.path.insert(0, '../src')
 import config
-
 import random
 import os
 import torch
 from torch.utils.data import Dataset
-
 import torchvision.transforms as transforms
-
 from PIL import Image
+
+sys.path.insert(0, '../src')
 
 random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
 def make_data_transform(input_size, sample_mean=config.SAMPLE_MEAN, sample_std=config.SAMPLE_STD, num_channels=3, scale=1.1):
     sample_mean = [sample_mean] * num_channels
