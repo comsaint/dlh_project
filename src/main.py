@@ -9,7 +9,6 @@ from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
 writer = SummaryWriter()
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -60,7 +59,7 @@ def main():
     model, t_losses, v_losses, v_best_auc, v_rocs, best_model_pth = train_model(model, train_data_loader,
                                                                                 val_data_loader, criterion, optimizer,
                                                                                 num_epochs=config.NUM_EPOCHS,
-                                                                                verbose=True)
+                                                                                verbose=False)
 
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))

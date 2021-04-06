@@ -19,4 +19,5 @@
 5. After setup completes, `cd` into the `src` folder: `cd src`.
 6. (Optional) open `config.py` and change settings, such as the model to tune, number of epochs etc.
 7. Run `python main.py`. You will see the training progress in console print.
+    - (Optional) you may monitor the training loss with TensorBoard by running `tensorboard --logdir=runs` in `\src`.
 8. After training completes, look at the result on console. Also, the trained models are under `model/` folder.
