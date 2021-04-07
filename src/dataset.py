@@ -1,13 +1,16 @@
 import sys
 import config
+
 import random
 import os
 import torch
 from torch.utils.data import Dataset
+
 import torchvision.transforms as transforms
 from PIL import Image
 
 sys.path.insert(0, '../src')
+
 
 random.seed(config.SEED)
 torch.manual_seed(config.SEED)

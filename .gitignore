@@ -50,3 +50,4 @@ Thumbs.db
 .idea/*
 data/raw/*
 data/processed/*.png
+__pycache__
