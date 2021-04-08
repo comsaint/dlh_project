@@ -6,9 +6,7 @@ from model import initialize_model
 import torch
 from torch import nn
 from torch import optim
-from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -42,7 +40,7 @@ def main():
     criterion = nn.CrossEntropyLoss(weight=class_weight)  # note the class weight
 
     # Initialize the model for this run
-    model, input_size = initialize_model(config.MODEL_NAME, config.NUM_CLASSES, config.FEATURE_EXTRACT, use_pretrained=True)
+    model, input_size = initialize_model(config.MODEL_NAME, config.NUM_CLASSES)
     model = model.to(device)
     print(model)  # print structure
     print(f"Input image size: {input_size}")
@@ -53,7 +51,9 @@ def main():
     val_data_loader = load_data(df_val, label=config.DISEASE, transform=tfx['test'], shuffle=False)
 
     # Optimizer
-    optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
+    #optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
+    # to unfreeze more trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
 
     # train
     model, t_losses, v_losses, v_best_auc, v_rocs, best_model_pth = train_model(model, train_data_loader,
@@ -72,4 +72,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    writer.close()

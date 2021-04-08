@@ -1,16 +1,17 @@
 import sys
 import torch.nn as nn
 from torchvision import models
+from config import USE_PRETRAIN, FEATURE_EXTRACT
 
 sys.path.insert(0, '../src')
 
 
-def set_parameter_requires_grad(model, feature_extracting):
+def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
     if feature_extracting:
         for param in model.parameters():
             param.requires_grad = False
 
-def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
+def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
     if model_name == "resnet":
