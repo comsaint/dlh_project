@@ -2,6 +2,8 @@ import sys
 import torch.nn as nn
 from torchvision import models
 
+from caps_net import CapsNet
+
 sys.path.insert(0, '../src')
 
 
@@ -13,6 +15,7 @@ def set_parameter_requires_grad(model, feature_extracting):
 def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
+    print(f'Selecting model {model_name}')
     if model_name == "resnet":
         """ 
         Resnet18
@@ -78,6 +81,13 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         model_ft.fc = nn.Linear(num_ftrs,num_classes)
         input_size = 299
 
+    elif model_name == "capsnet":
+        """ 
+        Inception v3
+        Be careful, expects (299,299) sized images and has auxiliary output
+        """
+        model_ft = CapsNet(img_size=128, img_channels=3,conv_out_channels=768, out_channels=16*3)
+        input_size = 128
     else:
         raise Exception(f"Invalid model name '{model_name}'")
 

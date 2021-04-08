@@ -9,16 +9,18 @@ from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 
 writer = SummaryWriter()
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-def main():
+def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False):
     # load labels
     df_data, lst_labels = load_data_file(sampling=config.SAMPLING)
+    
     print(f"Number of images: {len(df_data)}")
+    
     # split the finding (disease) labels, to a list
     print(f"Number of labels: {len(lst_labels)}")
     print(f"Labels: {lst_labels}")
+    
     # split data into train, val and test set
     df_train_val, df_test = make_train_test_split(df_data)
 
@@ -35,15 +37,15 @@ def main():
     num_neg = sum(df_train[config.DISEASE] == 0)
     num_pos = sum(df_train[config.DISEASE] == 1)
     assert num_neg + num_pos == len(df_train)
+    
     print(f"# of negative/positive cases: {num_neg}:{num_pos}")
-    class_weight = torch.FloatTensor([(1 / num_neg) * (len(df_train)) / 2.0, (1 / num_pos) * (len(df_train)) / 2.0]).to(
-        device)
+    class_weight = torch.FloatTensor([(1 / num_neg) * (len(df_train)) / 2.0, (1 / num_pos) * (len(df_train)) / 2.0]).to('cpu')
     print(f"Class weight: {class_weight}")
     criterion = nn.CrossEntropyLoss(weight=class_weight)  # note the class weight
 
     # Initialize the model for this run
-    model, input_size = initialize_model(config.MODEL_NAME, config.NUM_CLASSES, config.FEATURE_EXTRACT, use_pretrained=True)
-    model = model.to(device)
+    model, input_size = initialize_model(model_name, config.NUM_CLASSES, config.FEATURE_EXTRACT, use_pretrained)
+    model = model.to(config.DEVICE)
     print(model)  # print structure
     print(f"Input image size: {input_size}")
 
@@ -59,17 +61,17 @@ def main():
     model, t_losses, v_losses, v_best_auc, v_rocs, best_model_pth = train_model(model, train_data_loader,
                                                                                 val_data_loader, criterion, optimizer,
                                                                                 num_epochs=config.NUM_EPOCHS,
-                                                                                verbose=False)
+                                                                                verbose=verbose)
 
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
     test_data_loader = load_data(df_test, label=config.DISEASE, transform=tfx['test'], shuffle=False)
-    test_loss, test_auc, _, _, _ = eval_model(model.to(device), test_data_loader, criterion)
+    test_loss, test_auc, _, _, _ = eval_model(model.to(config.DEVICE), test_data_loader, criterion)
     print(f"Test loss: {test_loss}; Test ROC: {test_auc}")
     print("End of script.")
     return None
 
 
 if __name__ == "__main__":
-    main()
+    main(model_name='capsnet', use_pretrained=False,verbose=True)
     writer.close()
