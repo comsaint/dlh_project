@@ -56,15 +56,15 @@ def main():
     # to unfreeze more trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
 
     # train
-    model, t_losses, v_losses, v_best_auc, v_rocs, best_model_pth = train_model(model, train_data_loader,
-                                                                                val_data_loader, criterion, optimizer,
-                                                                                num_epochs=config.NUM_EPOCHS,
-                                                                                verbose=False)
+    model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \
+        train_model(model, train_data_loader, val_data_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS,
+                    verbose=False)
 
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
     test_data_loader = load_data(df_test, label=config.DISEASE, transform=tfx['test'], shuffle=False)
     test_loss, test_auc, _, _, _ = eval_model(model.to(device), test_data_loader, criterion)
+    print(f"Best Validation loss: {v_best_loss}; at which AUC = {roc_at_best_v_loss}")
     print(f"Test loss: {test_loss}; Test ROC: {test_auc}")
     print("End of script.")
     return None

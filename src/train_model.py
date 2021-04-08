@@ -29,8 +29,8 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
     
     start_time = time.time()
     train_losses, val_losses, val_rocs = [], [], []
-    best_val_roc = 0.0
-    best_model_path= ''
+    best_val_loss, roc_at_best_val_loss = 0.0, 0.0
+    best_model_path = ''
     for epoch in range(num_epochs):  # loop over the dataset multiple times
         m.train()
         print(f"Epoch {epoch+1}")
@@ -73,15 +73,16 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
         # save model if best ROC
-        if val_auc > best_val_roc:
-            best_val_roc = val_auc
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            roc_at_best_val_loss = val_rocs
             best_model_path = save_model(m, epoch, best=True)
 
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
-    print(f"Best ROC achieved on validation set: {best_val_roc:3f}")
+    print(f"Best ROC achieved on validation set: {best_val_loss:3f}")
     writer.flush()
     writer.close()
-    return m, train_losses, val_losses, best_val_roc, val_rocs, best_model_path
+    return m, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
 
 
 def eval_model(model, loader, criterion):

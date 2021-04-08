@@ -9,20 +9,15 @@
 
 
 import sys
-
-sys.path.insert(0, '../src')
-
 import os
-
 import pandas as pd
 import random
-
 from glob import glob
-
 import config
-
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn import model_selection
+
+sys.path.insert(0, '../src')
 random.seed(config.SEED)
 
 
