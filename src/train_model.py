@@ -23,45 +23,21 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS, verbose=False):
-    print(f"Training started")
-    print(f"    Mode          : {device}")
-    print(f"    Model type    : {type(m)}")
-
-    start_time = time.time()
-
-    train_losses, val_losses, val_rocs = [], [], []
-    best_val_roc = 0.0
-    best_model_path = ''
-    for epoch in range(num_epochs):  # loop over the dataset multiple times
-        m.train()
-        print("=" * 40)
-        print(f"Epoch {epoch + 1}")
-
-        running_loss = 0.0
-        val_loss = 0.0
-        for i, data in enumerate(train_loader, 0):
-            if device != 'cpu':
-                torch.cuda.empty_cache()
-
-def train_model(model, train_data_loader, val_data_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS):
-
     print(f"Training started") 
     print(f"    Mode          : {device}")
-    print(f"    Model type    : {type(model)}")
+    print(f"    Model type    : {type(m)}")
     
     start_time = time.time()
-
-    train_losses, val_losses = [], []
-
+    train_losses, val_losses, val_rocs = [], [], []
+    best_val_roc = 0.0
+    best_model_path= ''
     for epoch in range(num_epochs):  # loop over the dataset multiple times
-        model.train()
+        m.train()
         print(f"Epoch {epoch+1}")
         
         running_loss = 0.0
-        for i, data in enumerate(train_data_loader, 0):
+        for i, data in enumerate(train_loader, 0):
             torch.cuda.empty_cache()
-
-
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
             inputs = inputs.to(device)
@@ -115,29 +91,29 @@ def eval_model(model, loader, criterion):
     with torch.no_grad():
         model.eval()
         # empty tensors to hold results
-        Y_prob, Y_true, Y_pred = [], [], []
+        y_prob, y_true, y_pred = [], [], []
         for inputs, labels in loader:
             probs = model(inputs.to(device))  # prediction probability
             labels = labels.type(torch.LongTensor).to(device)  # true labels
             _, predicted = torch.max(probs, dim=1)
             # stack results
-            Y_prob.append(probs[:, -1])  # probability of positive class
-            Y_true.append(labels)
-            Y_pred.append(predicted)
+            y_prob.append(probs[:, -1])  # probability of positive class
+            y_true.append(labels)
+            y_pred.append(predicted)
 
             loss += float(criterion(probs, labels))
     loss = loss/len(loader)
     # convert to numpy
-    Y_prob = torch.cat(Y_prob).detach().cpu().numpy()
-    Y_pred = torch.cat(Y_pred).detach().cpu().numpy()
-    Y_true = torch.cat(Y_true).detach().cpu().numpy()
+    y_prob = torch.cat(y_prob).detach().cpu().numpy()
+    y_pred = torch.cat(y_pred).detach().cpu().numpy()
+    y_true = torch.cat(y_true).detach().cpu().numpy()
 
     # TODO: use other metrics here
-    print(f"ROC: {roc_auc_score(Y_true, Y_prob):.3f}")
-    auc = roc_auc_score(Y_true, Y_prob)
-    print(classification_report(Y_true, Y_pred))
+    print(f"ROC: {roc_auc_score(y_true, y_prob):.3f}")
+    auc = roc_auc_score(y_true, y_prob)
+    print(classification_report(y_true, y_pred))
 
-    return loss, auc, Y_prob, Y_pred, Y_true
+    return loss, auc, y_prob, y_pred, y_true
 
 
 def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
