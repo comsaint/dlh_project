@@ -13,15 +13,16 @@ TEST_FILE = 'test_list.txt'
 # Hyperparamenters
 DISEASE = 'Atelectasis'
 NUM_CLASSES = 2
-FEATURE_EXTRACT = True
-MODEL_NAME = 'densenet'
+USE_PRETRAIN = True
+FEATURE_EXTRACT = True  # must be false if USE_PRETRAIN==False
+MODEL_NAME = 'alexnet'
 SEED=1
 VAL_SIZE=0.1
-NUM_WORKERS=12
+NUM_WORKERS=7
 
 NUM_EPOCHS=30
 LEARNING_RATE=0.005
-BATCH_SIZE=64
+BATCH_SIZE=128
 
 
 # Other settings

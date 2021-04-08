@@ -1,16 +1,17 @@
 import sys
 import torch.nn as nn
 from torchvision import models
+from config import USE_PRETRAIN, FEATURE_EXTRACT
 
 sys.path.insert(0, '../src')
 
 
-def set_parameter_requires_grad(model, feature_extracting):
+def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
     if feature_extracting:
         for param in model.parameters():
             param.requires_grad = False
 
-def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
+def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
     if model_name == "resnet":
@@ -75,8 +76,18 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         model_ft.AuxLogits.fc = nn.Linear(num_ftrs, num_classes)
         # Handle the primary net
         num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Linear(num_ftrs,num_classes)
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 299
+
+    elif model_name == "resnext50":
+        """
+        ResNeXt-50
+        """
+        model_ft = models.resnext50_32x4d(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
+        input_size = 224
 
     else:
         raise Exception(f"Invalid model name '{model_name}'")

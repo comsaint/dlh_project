@@ -9,7 +9,9 @@ from model import initialize_model
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score, classification_report
+from torch.utils.tensorboard import SummaryWriter
 
+writer = SummaryWriter()
 sys.path.insert(0, '../src')
 
 random.seed(config.SEED)
@@ -21,7 +23,6 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS, verbose=False):
-    from main import writer
     print(f"Training started")
     print(f"    Mode          : {device}")
     print(f"    Model type    : {type(m)}")
@@ -84,7 +85,9 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
         train_losses.append(running_loss / len(train_loader))  # keep trace of train loss in each epoch
         writer.add_scalar("Loss/train", running_loss / len(train_loader), epoch)  # write loss to TensorBoard
         print(f'Time elapsed: {(time.time()-start_time)/60.0:.1f} minutes.')
-        save_model(m, epoch)  # save every epoch
+
+        if epoch % 5 == 0:  # save every 5 epochs
+            save_model(m, epoch)
 
         # validate every epoch
         print("Validating...")
@@ -93,6 +96,7 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
         writer.add_scalar("ROCAUC/val", val_auc, epoch)
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
+        # save model if best ROC
         if val_auc > best_val_roc:
             best_val_roc = val_auc
             best_model_path = save_model(m, epoch, best=True)
@@ -100,6 +104,7 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
     print(f"Best ROC achieved on validation set: {best_val_roc:3f}")
     writer.flush()
+    writer.close()
     return m, train_losses, val_losses, best_val_roc, val_rocs, best_model_path
 
 
