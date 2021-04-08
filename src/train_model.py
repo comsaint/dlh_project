@@ -14,7 +14,6 @@ from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter()
 sys.path.insert(0, '../src')
 
-
 random.seed(config.SEED)
 np.random.seed(config.SEED)
 torch.manual_seed(config.SEED)
@@ -44,6 +43,25 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
             if device != 'cpu':
                 torch.cuda.empty_cache()
 
+def train_model(model, train_data_loader, val_data_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS):
+
+    print(f"Training started") 
+    print(f"    Mode          : {device}")
+    print(f"    Model type    : {type(model)}")
+    
+    start_time = time.time()
+
+    train_losses, val_losses = [], []
+
+    for epoch in range(num_epochs):  # loop over the dataset multiple times
+        model.train()
+        print(f"Epoch {epoch+1}")
+        
+        running_loss = 0.0
+        for i, data in enumerate(train_data_loader, 0):
+            torch.cuda.empty_cache()
+
+
             # get the inputs; data is a list of [inputs, labels]
             inputs, labels = data
             inputs = inputs.to(device)
@@ -54,6 +72,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
             # forward + backward + optimize
             outputs = m(inputs)
             loss = criterion(outputs, labels)
+
             loss.backward()
             optimizer.step()
 
@@ -129,3 +148,4 @@ def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MO
     torch.save(model.state_dict(), path)
     print(f"Model Saved at: {path}")
     return path
+
