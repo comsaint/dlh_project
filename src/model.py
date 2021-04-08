@@ -86,8 +86,8 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         Inception v3
         Be careful, expects (299,299) sized images and has auxiliary output
         """
-        model_ft = CapsNet(img_size=128, img_channels=3,conv_out_channels=768, out_channels=16*3)
         input_size = 128
+        model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=96, out_channels=16*3, num_classes=1)        
     else:
         raise Exception(f"Invalid model name '{model_name}'")
 

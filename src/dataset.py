@@ -16,9 +16,6 @@ random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-
 def make_data_transform(input_size, sample_mean=config.SAMPLE_MEAN, sample_std=config.SAMPLE_STD, num_channels=3, scale=1.1):
     sample_mean = [sample_mean] * num_channels
     sample_std = [sample_std] * num_channels
@@ -63,7 +60,7 @@ def load_data(dataframe, label, batch_size=config.BATCH_SIZE, transform=None, sh
     Data Loader with batch loading and transform.
     """
     image_data = NihDataset(dataframe, label=label, transform=transform)
-    pin = device == 'cpu'
+    pin = config.DEVICE == 'cpu'
     loader = torch.utils.data.DataLoader(image_data,
                                          batch_size=batch_size,
                                          shuffle=shuffle,

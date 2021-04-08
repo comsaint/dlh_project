@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter()
 
 
-def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False):
+def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_model_loss=False):
     # load labels
     df_data, lst_labels = load_data_file(sampling=config.SAMPLING)
     
@@ -60,18 +60,20 @@ def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False):
     # train
     model, t_losses, v_losses, v_best_auc, v_rocs, best_model_pth = train_model(model, train_data_loader,
                                                                                 val_data_loader, criterion, optimizer,
+                                                                                writer=writer,
                                                                                 num_epochs=config.NUM_EPOCHS,
+                                                                                use_model_loss=use_model_loss,
                                                                                 verbose=verbose)
 
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
     test_data_loader = load_data(df_test, label=config.DISEASE, transform=tfx['test'], shuffle=False)
-    test_loss, test_auc, _, _, _ = eval_model(model.to(config.DEVICE), test_data_loader, criterion)
+    test_loss, test_auc, _, _, _ = eval_model(model.to(config.DEVICE), test_data_loader, criterion, use_model_loss)
     print(f"Test loss: {test_loss}; Test ROC: {test_auc}")
     print("End of script.")
     return None
 
 
 if __name__ == "__main__":
-    main(model_name='capsnet', use_pretrained=False,verbose=True)
+    main(model_name='capsnet', use_pretrained=False,verbose=True, use_model_loss=True)
     writer.close()

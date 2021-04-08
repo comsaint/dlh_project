@@ -148,7 +148,7 @@ class CapsConvLayer(nn.Module):
             # b <= [1 , input_size, num_classes, num_capsules]
             b_ij = Variable(torch.zeros(1, self.input_size, self.num_classes, 1)).to(config.DEVICE)
             
-            # u_j|i = w_ij * u_i
+            # u_j|i = w_ij * u_i
             u_j_i = torch.matmul(w_ij, u_i)
 
             for iteration in range(self.iterations):
@@ -200,7 +200,7 @@ class CapsNet(nn.Module):
         
         self.image_size     = img_size
         self.image_channels = img_channels
-                
+        self.num_classes    = num_classes
                 
         self.conv = CapsConvLayer (
                  in_channels       = img_channels      , # *3
@@ -245,7 +245,7 @@ class CapsNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(int(2 * num_out_channels / 3), int(3 * num_out_channels / 2)),
             nn.ReLU(inplace=True),
-            nn.Linear(int(3 * num_out_channels / 2), img_size * img_size),
+            nn.Linear(int(3 * num_out_channels / 2), img_size * img_size * img_channels),
             nn.Sigmoid()
         )
         
@@ -256,30 +256,40 @@ class CapsNet(nn.Module):
         out = self.primary(out)        
         out = self.digit(out)
         
-        out = ((out ** 2).sum(dim=2) ** 0.5)
+        return out 
         
-        return out #, reconstructions
+    def loss(self, x, y_hat, y, mean_error=True, reconstruct=True):
         
-    def loss(self, x, y, out, reconstructions, mean_error=True):
-        return self.margin_loss(x,y,out,mean_error) + self.reconstruct_loss(x,out,margin_error)
+        margin_err      = self.margin_loss(x,y,y_hat,mean_error)
+        reconstruct_err = 0
         
-    def margin_loss(self, x, y, out, mean_error=True):    
+        if reconstruct:
+            reconstruct_err = self.reconstruct_loss(x,y_hat,mean_error)
+            
+        return margin_err + reconstruct_err
+        
+    def margin_loss(self, x, y, y_hat, mean_error=True):    
         
         batch = x.size(0)
         
-        # Margin Loss
-        left  = torch.max(0.9 - out.unsqueeze(-1), Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
-        right = torch.max(out.unsqueeze(-1) - 0.1, Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
+        y_hat = ((y_hat ** 2).sum(dim=2, keepdim=True) ** 0.5).to(config.DEVICE)
         
-        margin_error = (y * left + 0.5  * (1. - y) * right).sum(dim=1)
+        # Margin Loss
+        left  = torch.max(0.9 - y_hat.unsqueeze(-1), Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
+        right = torch.max(y_hat.unsqueeze(-1) - 0.1, Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
+        y_bar = y.view(batch,self.num_classes).to(config.DEVICE)
+        margin_error = (y_bar * left + 0.5  * (1. - y_bar) * right).sum(dim=1)
+        
         if mean_error:
             margin_error = margin_error.mean()
         
         return margin_error
 
-    def reconstruct_loss(self, x, out, mean_error=True):    
+    def reconstruct_loss(self, x, y_hat, mean_error=True):    
     
         batch = x.size(0)
+        
+        out = ((y_hat ** 2).sum(dim=2) ** 0.5)
         
         _, index = out.max(dim=1)
         index = index.data
@@ -287,14 +297,14 @@ class CapsNet(nn.Module):
         masks = [None] * batch
         
         for idx in range(batch):
-            data = out[idx]
+            data = y_hat[idx]
 
             mask = Variable(torch.zeros(data.size())).to(config.DEVICE)
             mask[index[idx]] = data[index[idx]]
             masks[idx] = mask
         y_hat = torch.stack(masks, dim=0)
         
-        reconstructions = self.decoder(y_hat.view(batch, -1)).view(-1, self.image_channels, self.image_size, self.image_size)
+        reconstructions = self.decoder(y_hat.view(batch, -1)).view(batch, self.image_channels, self.image_size, self.image_size)
         
         # Reconstruction Loss
         reconstruct_error = torch.sum(((reconstructions - x).view(batch, -1) ** 2), dim=1) * 0.0005
@@ -303,3 +313,9 @@ class CapsNet(nn.Module):
         
         return reconstruct_error
             
+    def get_preduction(self, out):
+        length = ((out ** 2).sum(dim=2, keepdim=True) ** 0.5)
+        
+        y_hat = length.data.max(1)[1].cpu()
+        
+        return y_hat
