@@ -43,9 +43,12 @@ def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR
         {os.path.basename(image_path): os.path.relpath(image_path) for image_path in image_paths})
 
     # one-hot encode labels to columns
-    df['targets'] = df['Finding Labels'].str.split("|", expand = False)  # some images have >1 labels, split to list
-    labels = set([item for sublist in df['targets'].tolist() for item in sublist])  # get the set of labels
-    labels = sorted(list(labels))
+    df['targets'] = df['Finding Labels'].str.split("|", expand=False)  # some images have >1 labels, split to list
+    diseases = set([item for sublist in df['targets'].tolist() for item in sublist])  # get the set of labels
+    diseases = sorted(list(diseases))
+    # move the 'no finding' label to tail
+    diseases.append(diseases.pop(diseases.index('No Finding')))
+    diseases = tuple(diseases)  # non-mutatable
     # make each label column
     mlb = MultiLabelBinarizer(sparse_output=True)
     df = df.join(
@@ -53,12 +56,15 @@ def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR
                     mlb.fit_transform(df.pop('targets')),
                     index=df.index,
                     columns=mlb.classes_))
-    df[labels]=df[labels].sparse.to_dense()  # for easy .describe()
+    df[diseases] = df[diseases].sparse.to_dense()  # for easy .describe()
+
+    # also make a label vector
+    df['labels'] = df[diseases].values.tolist()
 
     if sampling > 0:
         df = df.sample(sampling).reset_index()
 
-    return df, labels
+    return df, diseases
 
 
 def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, test_list_file=config.TEST_FILE,
@@ -77,11 +83,6 @@ def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, te
     return df_train.reset_index(drop=True), df_valid.reset_index(drop=True)
 
 
-def train_test_split(df, test_size=config.VAL_SIZE, stratify_label=None):
-    if stratify_label:
-        stratify_label = df[stratify_label]
-    df_train, df_test = model_selection.train_test_split(df,
-                                                         test_size=test_size,
-                                                         stratify=stratify_label,
-                                                         random_state=config.SEED)
+def train_test_split(df, test_size=config.VAL_SIZE):
+    df_train, df_test = model_selection.train_test_split(df, test_size=test_size, random_state=config.SEED)
     return df_train.reset_index(drop=True), df_test.reset_index(drop=True)
