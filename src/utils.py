@@ -1,7 +1,11 @@
 import math
+import time
 from config import NUM_CLASSES
-from sklearn.metrics import roc_curve, auc
 import numpy as np
+from sklearn.metrics import roc_curve, auc
+from torch.utils.tensorboard import SummaryWriter
+
+writer = SummaryWriter(f'runs/experiment_1')
 
 
 def conv_output_volume(W, F, S, P):

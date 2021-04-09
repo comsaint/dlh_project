@@ -3,9 +3,11 @@ import config
 from dataset import make_data_transform, load_data
 from data_processing import load_data_file, train_test_split, make_train_test_split
 from model import initialize_model
+from train_model import save_model
 import torch
 from torch import nn
 from torch import optim
+from utils import writer
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -31,13 +33,16 @@ def main():
     # Initialize the model for this run
     model, input_size = initialize_model(config.MODEL_NAME, config.NUM_CLASSES)
     model = model.to(device)
-    print(model)  # print structure
     print(f"Input image size: {input_size}")
 
     # make data loader
     tfx = make_data_transform(input_size)
     train_data_loader = load_data(df_train, transform=tfx['train'], shuffle=True)
     val_data_loader = load_data(df_val, transform=tfx['test'], shuffle=False)
+
+    # visualize the model in TensorBoard
+    _img, _ = next(iter(train_data_loader))
+    writer.add_graph(model, _img.to(device))
 
     # Criterion
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
@@ -52,6 +57,8 @@ def main():
     model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \
         train_model(model, train_data_loader, val_data_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS,
                     verbose=False)
+    # save the final model
+    save_model(model, 999)
 
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
@@ -59,6 +66,10 @@ def main():
     test_loss, test_auc, _, _, _ = eval_model(model.to(device), test_data_loader, criterion)
     print(f"Best Validation loss: {v_best_loss}; at which AUC = {roc_at_best_v_loss}")
     print(f"Test loss: {test_loss}; Test ROC: {test_auc}")
+    writer.add_scalar("Loss/test", test_loss, 0)
+    writer.add_scalar("ROCAUC/test", test_auc, 0)
+    writer.flush()
+    writer.close()
     print("End of script.")
     return None
 

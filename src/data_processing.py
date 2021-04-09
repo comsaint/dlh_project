@@ -47,8 +47,15 @@ def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR
     diseases = set([item for sublist in df['targets'].tolist() for item in sublist])  # get the set of labels
     diseases = sorted(list(diseases))
     # move the 'no finding' label to tail
-    diseases.append(diseases.pop(diseases.index('No Finding')))
-    diseases = tuple(diseases)  # non-mutatable
+    ###########################################################
+    # This part controls which labels are used
+    if config.NUM_CLASSES == 15:
+        diseases.append(diseases.pop(diseases.index('No Finding')))  # 15 labels
+    elif config.NUM_CLASSES == 14:
+        diseases.pop(diseases.index('No Finding'))  # 14 labels (remove No Finding)
+    else:
+        raise NotImplementedError(f"Number of classes must be 14 or 15. Got {config.NUM_CLASSES}")
+    ###########################################################
     # make each label column
     mlb = MultiLabelBinarizer(sparse_output=True)
     df = df.join(
@@ -56,9 +63,8 @@ def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR
                     mlb.fit_transform(df.pop('targets')),
                     index=df.index,
                     columns=mlb.classes_))
-    df[diseases] = df[diseases].sparse.to_dense()  # for easy .describe()
 
-    # also make a label vector
+    # make a label vector
     df['labels'] = df[diseases].values.tolist()
 
     if sampling > 0:

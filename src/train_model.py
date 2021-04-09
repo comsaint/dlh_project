@@ -3,15 +3,14 @@ import time
 import random
 import os
 import config
+from math import inf
 import numpy as np
 import torch
 from sklearn.metrics import classification_report
-from torch.utils.tensorboard import SummaryWriter
 from utils import calculate_metric
+from utils import writer
 
 sys.path.insert(0, '../src')
-
-writer = SummaryWriter()
 
 random.seed(config.SEED)
 np.random.seed(config.SEED)
@@ -28,11 +27,11 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
     
     start_time = time.time()
     train_losses, val_losses, val_rocs = [], [], []
-    best_val_loss, roc_at_best_val_loss = 0.0, 0.0
+    best_val_loss, roc_at_best_val_loss = inf, 0.0
     best_model_path = ''
-    for epoch in range(num_epochs):  # loop over the dataset multiple times
+    for epoch in range(1, num_epochs):  # loop over the dataset multiple times
         m.train()
-        print(f"Epoch {epoch+1}")
+        print(f"Epoch {epoch}")
         
         running_loss = 0.0
         for i, (inputs, labels) in enumerate(train_loader, 0):
@@ -53,7 +52,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
             print(".", end="")
             if verbose:
                 if i % 50 == 9:  # print every 50 mini-batches
-                    print(f' Epoch: {epoch + 1:>2}, '
+                    print(f' Epoch: {epoch:>2}, '
                           f' Batch: {i + 1:>3} , '
                           f' loss: {running_loss / (i + 1):>4} '
                           f' Average batch time: {(time.time() - start_time) / (i + 1)} secs')
@@ -72,6 +71,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
         print(f"Validation ROC: {val_auc:>3f}")
         writer.add_scalar("Loss/val", val_loss, epoch)
         writer.add_scalar("ROCAUC/val", val_auc, epoch)
+
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
         # save model if best ROC
@@ -79,11 +79,11 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
             best_val_loss = val_loss
             roc_at_best_val_loss = val_rocs
             best_model_path = save_model(m, epoch, best=True)
+        writer.flush()
 
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
     print(f"Best ROC achieved on validation set: {best_val_loss:3f}")
-    writer.flush()
-    writer.close()
+
     return m, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
 
 

@@ -11,14 +11,14 @@ TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
 
 # Hyperparamenters
-NUM_CLASSES = 15  # 14 diseases + 'No Finding'
+NUM_CLASSES = 14  # 14 diseases (+1 if include 'No Finding')
 USE_PRETRAIN = True
 FEATURE_EXTRACT = True  # must be false if USE_PRETRAIN==False
 MODEL_NAME = 'resnext50'
 VAL_SIZE = 0.1
 NUM_EPOCHS = 30
-LEARNING_RATE = 0.0003
-BATCH_SIZE = 128
+LEARNING_RATE = 0.0005
+BATCH_SIZE = 126
 
 # Utilities
 NUM_WORKERS = 7
