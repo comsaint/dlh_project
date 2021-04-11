@@ -108,7 +108,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
             for i in range(batch.size(0)):
                 for j in range(batch.size(1)):
                     grayscale_cam = cam(input_tensor=batch[i, j, :, :].unsqueeze(0),method="gradcam",target_category=target_category)
-                    mask =(grayscale_cam > .4).astype(int)*255
+                    mask =(grayscale_cam > .8).astype(int)*255
                     mask_batch.append(mask)
 
             mask = torch.FloatTensor(mask_batch)
