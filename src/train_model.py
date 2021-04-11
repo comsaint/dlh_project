@@ -9,7 +9,11 @@ from model import initialize_model
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score, classification_report
-
+from pytorch_grad_cam import CAM, GuidedBackpropReLUModel
+from pytorch_grad_cam.utils.image import show_cam_on_image, \
+                                         deprocess_image, \
+                                         preprocess_image
+from torchvision import models
 sys.path.insert(0, '../src')
 
 random.seed(config.SEED)
@@ -20,44 +24,45 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
+# def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS, verbose=False):
+#     from main import writer
+#     print(f"Training started")
+#     print(f"    Mode          : {device}")
+#     print(f"    Model type    : {type(m)}")
+
+#     start_time = time.time()
+
+#     train_losses, val_losses, val_rocs = [], [], []
+#     best_val_roc = 0.0
+#     best_model_path = ''
+#     for epoch in range(num_epochs):  # loop over the dataset multiple times
+#         m.train()
+#         print("=" * 40)
+#         print(f"Epoch {epoch + 1}")
+
+#         running_loss = 0.0
+#         val_loss = 0.0
+#         for i, data in enumerate(train_loader, 0):
+#             if device != 'cpu':
+#                 torch.cuda.empty_cache()
+
 def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS, verbose=False):
     from main import writer
-    print(f"Training started")
+    print(f"Training started") 
     print(f"    Mode          : {device}")
     print(f"    Model type    : {type(m)}")
-
+    
     start_time = time.time()
 
-    train_losses, val_losses, val_rocs = [], [], []
+    train_losses, val_losses , val_rocs= [], [], []
     best_val_roc = 0.0
     best_model_path = ''
     for epoch in range(num_epochs):  # loop over the dataset multiple times
         m.train()
-        print("=" * 40)
-        print(f"Epoch {epoch + 1}")
-
-        running_loss = 0.0
-        val_loss = 0.0
-        for i, data in enumerate(train_loader, 0):
-            if device != 'cpu':
-                torch.cuda.empty_cache()
-
-def train_model(model, train_data_loader, val_data_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS):
-
-    print(f"Training started") 
-    print(f"    Mode          : {device}")
-    print(f"    Model type    : {type(model)}")
-    
-    start_time = time.time()
-
-    train_losses, val_losses = [], []
-
-    for epoch in range(num_epochs):  # loop over the dataset multiple times
-        model.train()
         print(f"Epoch {epoch+1}")
         
         running_loss = 0.0
-        for i, data in enumerate(train_data_loader, 0):
+        for i, data in enumerate(train_loader, 0):
             torch.cuda.empty_cache()
 
 
@@ -65,15 +70,52 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
             inputs, labels = data
             inputs = inputs.to(device)
             labels = labels.type(torch.LongTensor).to(device)
+            
 
             # zero the parameter gradients
             optimizer.zero_grad()
             # forward + backward + optimize
             outputs = m(inputs)
+
+           
             loss = criterion(outputs, labels)
 
             loss.backward()
             optimizer.step()
+            
+
+            #######CAM#######
+
+            # Choose the target layer you want to compute the visualization for.
+            # Usually this will be the last convolutional layer in the model.
+            # Some common choices can be:
+            # Resnet18 and 50: model.layer4[-1]
+            # VGG, densenet161: model.features[-1]
+            # mnasnet1_0: model.layers[-1]
+            # You can print the model to help chose the layer
+            model = models.resnet50(pretrained=True)
+            target_layer = model.layer4[-1]
+
+            cam = CAM(model=model, target_layer=target_layer,use_cuda=True)
+
+            target_category = 1
+            # # If None, returns the map for the highest scoring category.
+            # # Otherwise, targets the requested category.
+           
+            mask_batch=[]
+            
+            batch=inputs.unsqueeze(0)
+            for i in range(batch.size(0)):
+                for j in range(batch.size(1)):
+                    grayscale_cam = cam(input_tensor=batch[i, j, :, :].unsqueeze(0),method="gradcam",target_category=target_category)
+                    mask =(grayscale_cam > .4).astype(int)*255
+                    mask_batch.append(mask)
+
+            mask = torch.FloatTensor(mask_batch)
+            print("mask",mask.shape)
+            print("input",inputs.shape)
+
+
 
             # print statistics
             running_loss += float(loss.item())

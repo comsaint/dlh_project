@@ -7,7 +7,6 @@ import torch
 from torch import nn
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
-
 writer = SummaryWriter()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -54,7 +53,7 @@ def main():
 
     # Optimizer
     optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
-
+    
     # train
     model, t_losses, v_losses, v_best_auc, v_rocs, best_model_pth = train_model(model, train_data_loader,
                                                                                 val_data_loader, criterion, optimizer,
