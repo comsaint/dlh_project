@@ -16,7 +16,6 @@ def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
 def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
-    print(f'Selecting model {model_name}')
     if model_name == "resnet":
         """ 
         Resnet18
@@ -68,7 +67,7 @@ def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, featu
         input_size = 224
 
     elif model_name == "inception":
-        """ 
+        """
         Inception v3
         Be careful, expects (299,299) sized images and has auxiliary output
         """
@@ -81,7 +80,7 @@ def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, featu
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 299
-        
+
     elif model_name == "resnext50":
         """
         ResNeXt-50

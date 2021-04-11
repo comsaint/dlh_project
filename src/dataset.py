@@ -16,31 +16,26 @@ random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
-def make_data_transform(input_size, sample_mean=config.SAMPLE_MEAN, sample_std=config.SAMPLE_STD, num_channels=3, scale=1.1):
-    sample_mean = [sample_mean] * num_channels
-    sample_std = [sample_std] * num_channels
+def make_data_transform(input_size):
     return {
                 'train': transforms.Compose([
                     #transforms.Resize(256),
                     transforms.RandomResizedCrop(input_size),  # usually 224
                     transforms.RandomHorizontalFlip(),  # data augmentation
                     transforms.ToTensor(),
-                    transforms.Normalize(sample_mean, sample_std)
                 ]),
                 'test': transforms.Compose([
                     transforms.Resize(256),
                     transforms.CenterCrop(input_size),
                     transforms.ToTensor(),
-                    transforms.Normalize(sample_mean, sample_std)
                 ]),
             }
 
 
 class NihDataset(Dataset):
-    def __init__(self, dataframe, label, transform=None, greyscale=False):
+    def __init__(self, dataframe, transform=None, greyscale=False):
         self.dataframe = dataframe
         self.transform = transform
-        self.label = label
         self.greyscale = greyscale
 
     def __len__(self):
@@ -49,12 +44,14 @@ class NihDataset(Dataset):
     def __getitem__(self, idx):
         # via .getband(), some images are know to have 4 channels. Here we convert them to 3-channel RGB.
         image = Image.open(self.dataframe.loc[idx, 'Image_path'])
+        
         if self.greyscale:
             image = image.convert('L')
         else:
             image = image.convert('RGB')
             
-        target = self.dataframe.loc[idx, self.label]
+        target = self.dataframe.loc[idx, 'labels']  # label is a 15-dim vector
+        target = torch.FloatTensor(target)
 
         if self.transform:
             image = self.transform(image)
@@ -66,7 +63,7 @@ def load_data(dataframe, label, batch_size=config.BATCH_SIZE, transform=None, sh
     """
     Data Loader with batch loading and transform.
     """
-    image_data = NihDataset(dataframe, label=label, transform=transform, greyscale=greyscale)
+    image_data = NihDataset(dataframe, transform=transform, greyscale=greyscale)
     pin = config.DEVICE == 'cpu'
     loader = torch.utils.data.DataLoader(image_data,
                                          batch_size=batch_size,

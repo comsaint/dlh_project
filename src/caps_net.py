@@ -4,7 +4,7 @@ sys.path.insert(0, '../src')
 
 # Import configuration an utility functions
 import config
-import util
+import utils
 
 # PyTorch Libs
 import torch
@@ -214,7 +214,7 @@ class CapsNet(nn.Module):
                 )
                 
                 
-        conv_output_volume = util.conv_output_volume(img_size,conv_kernel_size,1,0)
+        conv_output_volume = utils.conv_output_volume(img_size,conv_kernel_size,1,0)
         
         self.primary = CapsConvLayer (
                  in_channels       = conv_out_channels , # *3
@@ -227,7 +227,7 @@ class CapsNet(nn.Module):
                  num_capsules      = num_capsules
                 )
         
-        prim_output_volume = util.conv_output_volume(conv_output_volume,conv_kernel_size,2,0)
+        prim_output_volume = utils.conv_output_volume(conv_output_volume,conv_kernel_size,2,0)
         
         self.digit = CapsConvLayer (
                  out_channels      = out_channels  , # *3
