@@ -27,7 +27,8 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
     start_time = time.time()
 
     train_losses, val_losses, val_rocs = [], [], []
-    best_val_roc = 0
+    best_val_roc = 0.0
+    best_model_path= ''
     
     for epoch in range(num_epochs):  # loop over the dataset multiple times
         model.train()
@@ -75,7 +76,8 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
         writer.add_scalar("Loss/train", running_loss / len(train_data_loader), epoch)  # write loss to TensorBoard
         
         print(f'Time elapsed: {(time.time()-start_time)/60.0:.1f} minutes.')
-        save_model(model, epoch)  # save every epoch
+        if epoch % 5 == 0:  # save every 5 epochs
+            save_model(model, epoch)  
 
         # validate every epoch
         
@@ -92,6 +94,7 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
     print(f"Best ROC achieved on validation set: {best_val_roc:3f}")
     writer.flush()
+    writer.close()
     return model, train_losses, val_losses, best_val_roc, val_rocs, best_model_path
 
 
