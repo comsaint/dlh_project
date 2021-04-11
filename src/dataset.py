@@ -36,17 +36,23 @@ def make_data_transform(input_size, sample_mean=config.SAMPLE_MEAN, sample_std=c
 
 
 class NihDataset(Dataset):
-    def __init__(self, dataframe, label, transform=None):
+    def __init__(self, dataframe, label, transform=None, greyscale=False):
         self.dataframe = dataframe
         self.transform = transform
         self.label = label
+        self.greyscale = greyscale
 
     def __len__(self):
         return len(self.dataframe)
 
     def __getitem__(self, idx):
         # via .getband(), some images are know to have 4 channels. Here we convert them to 3-channel RGB.
-        image = Image.open(self.dataframe.loc[idx, 'Image_path']).convert('RGB')
+        image = Image.open(self.dataframe.loc[idx, 'Image_path'])
+        if self.greyscale:
+            image = image.convert('L')
+        else:
+            image = image.convert('RGB')
+            
         target = self.dataframe.loc[idx, self.label]
 
         if self.transform:
@@ -55,11 +61,11 @@ class NihDataset(Dataset):
         return image, target
 
 
-def load_data(dataframe, label, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS):
+def load_data(dataframe, label, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=False):
     """
     Data Loader with batch loading and transform.
     """
-    image_data = NihDataset(dataframe, label=label, transform=transform)
+    image_data = NihDataset(dataframe, label=label, transform=transform, greyscale=greyscale)
     pin = config.DEVICE == 'cpu'
     loader = torch.utils.data.DataLoader(image_data,
                                          batch_size=batch_size,
@@ -67,3 +73,4 @@ def load_data(dataframe, label, batch_size=config.BATCH_SIZE, transform=None, sh
                                          num_workers=num_workers,
                                          pin_memory=pin)
     return loader
+

@@ -253,7 +253,7 @@ class CapsNet(nn.Module):
         
         out = x
         out = self.conv(out)
-        out = self.primary(out)        
+        out = self.primary(out)
         out = self.digit(out)
         
         return out 

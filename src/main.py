@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter()
 
 
-def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_model_loss=False):
+def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_model_loss=False, greyscale=False):
     # load labels
     df_data, lst_labels = load_data_file(sampling=config.SAMPLING)
     
@@ -50,9 +50,13 @@ def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_mod
     print(f"Input image size: {input_size}")
 
     # make data loader
-    tfx = make_data_transform(input_size)
-    train_data_loader = load_data(df_train, label=config.DISEASE, transform=tfx['train'], shuffle=True)
-    val_data_loader = load_data(df_val, label=config.DISEASE, transform=tfx['test'], shuffle=False)
+    if greyscale:
+        tfx = make_data_transform(input_size, num_channels=1)
+    else:
+        tfx = make_data_transform(input_size)
+
+    train_data_loader = load_data(df_train, label=config.DISEASE, transform=tfx['train'], shuffle=True, greyscale=greyscale)
+    val_data_loader = load_data(df_val, label=config.DISEASE, transform=tfx['test'], shuffle=False, greyscale=greyscale)
 
     # Optimizer
     optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
@@ -67,7 +71,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_mod
 
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
-    test_data_loader = load_data(df_test, label=config.DISEASE, transform=tfx['test'], shuffle=False)
+    test_data_loader = load_data(df_test, label=config.DISEASE, transform=tfx['test'], shuffle=False, greyscale=greyscale)
     test_loss, test_auc, _, _, _ = eval_model(model.to(config.DEVICE), test_data_loader, criterion, use_model_loss)
     print(f"Test loss: {test_loss}; Test ROC: {test_auc}")
     print("End of script.")
@@ -75,5 +79,6 @@ def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_mod
 
 
 if __name__ == "__main__":
-    main(model_name='capsnet', use_pretrained=False,verbose=True, use_model_loss=True)
+    main(model_name='capsnet', use_pretrained=False,verbose=True, use_model_loss=True, greyscale=True)
     writer.close()
+

@@ -68,7 +68,7 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
             running_loss += float(loss.item())
             print(".", end="")
             if verbose:
-                if i % 10 == 9:  # print every 10 mini-batches
+                if i+1 % 1 == 0:  # print every 10 mini-batches
                     print(f' Epoch: {epoch + 1:>2}, Bacth: {i + 1:>3} / {iterations} , loss: {running_loss / (i + 1)} Average batch time: {(time.time() - start_time) / (i + 1)} secs')
         
         train_losses.append(running_loss / len(train_data_loader))  # keep trace of train loss in each epoch
@@ -142,10 +142,11 @@ def eval_model(model, loader, criterion, use_model_loss=False):
 
 def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
     if best:
-        path = os.path.join(root_dir, model_dir, f'{config.MODEL_NAME}_{config.DISEASE}_best.pth')
+        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_{config.DISEASE}_best.pth')
     else:
-        path = os.path.join(root_dir, model_dir, f'{config.MODEL_NAME}_{config.DISEASE}_{num_epochs}epoch.pth')
+        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_{config.DISEASE}_{num_epochs}epoch.pth')
     torch.save(model.state_dict(), path)
     print(f"Model Saved at: {path}")
     return path
+
 

@@ -90,3 +90,4 @@ def train_test_split(df, test_size=config.VAL_SIZE, stratify_label=None):
                                                          stratify=stratify_label,
                                                          random_state=config.SEED)
     return df_train.reset_index(drop=True), df_test.reset_index(drop=True)
+

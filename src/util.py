@@ -18,3 +18,4 @@ def maxpool_output_volume(W, F, S):
     calculate the output volume size.
     """
     return int(np.ceil((W - F + 1) / S))
+
