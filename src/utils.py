@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics import roc_curve, auc
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter(f'runs/experiment_1')
+writer = SummaryWriter(f'runs/experiment_sketch_1')
 
 
 def conv_output_volume(W, F, S, P):

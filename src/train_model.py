@@ -7,6 +7,7 @@ from math import inf
 import numpy as np
 import torch
 from sklearn.metrics import classification_report
+from torch.cuda.amp import GradScaler
 from utils import calculate_metric
 from utils import writer
 
@@ -18,9 +19,12 @@ torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+scaler = GradScaler()
+gradient_accumulations = 16
 
 
-def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS, verbose=True):
+def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=None, num_epochs=config.NUM_EPOCHS,
+                verbose=True):
     print(f"Training started") 
     print(f"    Mode          : {device}")
     print(f"    Model type    : {type(m)}")
@@ -29,6 +33,8 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
     best_model_path = ''
+
+    m.zero_grad()
     for epoch in range(1, num_epochs):  # loop over the dataset multiple times
         m.train()
         print(f"Epoch {epoch}")
@@ -38,14 +44,19 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
             # get the inputs: a list of [inputs, labels]
             # `labels` is an 15-dim list of tensors
             inputs, labels = inputs.to(device), labels.to(device)
-            # zero the parameter gradients
-            optimizer.zero_grad()
+
             # forward + backward + optimize
             outputs = m(inputs)
             loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
             loss = torch.mean(loss)
+            scaler.scale(loss/gradient_accumulations).backward()
+
+            # gradient accumulation trick
+            # https://towardsdatascience.com/i-am-so-done-with-cuda-out-of-memory-c62f42947dca
+            if (i + 1) % gradient_accumulations == 0:
+                scaler.step(optimizer)
+                scaler.update()
+                m.zero_grad()
             running_loss += float(loss.item())
 
             # print statistics
@@ -56,6 +67,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
                           f' Batch: {i + 1:>3} , '
                           f' loss: {running_loss / (i + 1):>4} '
                           f' Average batch time: {(time.time() - start_time) / (i + 1)} secs')
+
         print(f"\nTraining loss: {running_loss / len(train_loader):>4f}")
         train_losses.append(running_loss / len(train_loader))  # keep trace of train loss in each epoch
         writer.add_scalar("Loss/train", running_loss / len(train_loader), epoch)  # write loss to TensorBoard
@@ -71,6 +83,9 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, num_epochs=
         print(f"Validation ROC: {val_auc:>3f}")
         writer.add_scalar("Loss/val", val_loss, epoch)
         writer.add_scalar("ROCAUC/val", val_auc, epoch)
+
+        # step the learning rate
+        scheduler.step(val_loss)
 
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
@@ -118,7 +133,7 @@ def eval_model(model, loader, criterion, threshold=0.50, verbose=True):
 
     # print result
     if verbose:
-        print(classification_report(y_true, y_pred))
+        print(classification_report(y_true, y_pred, labels=labels))
 
     return loss, macro_roc_auc, y_prob, y_pred, y_true
 

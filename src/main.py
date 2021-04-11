@@ -7,6 +7,7 @@ from train_model import save_model
 import torch
 from torch import nn
 from torch import optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils import writer
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -52,11 +53,13 @@ def main():
     # Optimizer
     # to unfreeze more trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
+    # wrap by scheduler
+    scheduler = ReduceLROnPlateau(optimizer, 'min')
 
     # train
     model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \
-        train_model(model, train_data_loader, val_data_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS,
-                    verbose=False)
+        train_model(model, train_data_loader, val_data_loader, criterion, optimizer, scheduler,
+                    num_epochs=config.NUM_EPOCHS, verbose=False)
     # save the final model
     save_model(model, 999)
 
