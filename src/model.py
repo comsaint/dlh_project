@@ -11,6 +11,7 @@ def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
         for param in model.parameters():
             param.requires_grad = False
 
+
 def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
@@ -65,7 +66,7 @@ def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, featu
         input_size = 224
 
     elif model_name == "inception":
-        """ 
+        """
         Inception v3
         Be careful, expects (299,299) sized images and has auxiliary output
         """
