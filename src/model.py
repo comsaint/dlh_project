@@ -1,18 +1,19 @@
 import sys
 import torch.nn as nn
 from torchvision import models
+from config import USE_PRETRAIN, FEATURE_EXTRACT
 
 from caps_net import CapsNet
 
 sys.path.insert(0, '../src')
 
 
-def set_parameter_requires_grad(model, feature_extracting):
+def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
     if feature_extracting:
         for param in model.parameters():
             param.requires_grad = False
 
-def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
+def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
     print(f'Selecting model {model_name}')
@@ -78,7 +79,7 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         model_ft.AuxLogits.fc = nn.Linear(num_ftrs, num_classes)
         # Handle the primary net
         num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Linear(num_ftrs,num_classes)
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 299
         
     elif model_name == "resnext50":
@@ -97,6 +98,7 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
         """
         input_size = 224
         model_ft = CapsNet(img_size=input_size, img_channels=1,conv_out_channels=96, out_channels=16*3, num_classes=1,conv_kernel_size=9)        
+
     else:
         raise Exception(f"Invalid model name '{model_name}'")
 

@@ -11,6 +11,7 @@ import torch
 from sklearn.metrics import roc_auc_score, classification_report
 from torch.utils.tensorboard import SummaryWriter
 
+writer = SummaryWriter()
 sys.path.insert(0, '../src')
 
 random.seed(config.SEED)
@@ -87,6 +88,7 @@ def train_model(model, train_data_loader, val_data_loader, criterion, optimizer,
         writer.add_scalar("ROCAUC/val", val_auc, epoch)
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
+        # save model if best ROC
         if val_auc > best_val_roc:
             best_val_roc = val_auc
             best_model_path = save_model(model, epoch, best=True)
@@ -106,7 +108,7 @@ def eval_model(model, loader, criterion, use_model_loss=False):
     with torch.no_grad():
         model.eval()
         # empty tensors to hold results
-        Y_prob, Y_true, Y_pred = [], [], []
+        y_prob, y_true, y_pred = [], [], []
         for inputs, labels in loader:
             if config.DEVICE == 'cuda':
                 torch.cuda.empty_cache()
@@ -129,18 +131,18 @@ def eval_model(model, loader, criterion, use_model_loss=False):
     loss = loss/len(loader)
     
     # convert to numpy
-    Y_prob = torch.cat(Y_prob).detach().cpu().numpy()
-    Y_pred = torch.cat(Y_pred).detach().cpu().numpy()
-    Y_true = torch.cat(Y_true).detach().cpu().numpy()
+    y_prob = torch.cat(y_prob).detach().cpu().numpy()
+    y_pred = torch.cat(y_pred).detach().cpu().numpy()
+    y_true = torch.cat(y_true).detach().cpu().numpy()
 
     print(loss)
     
     # TODO: use other metrics here
-    print(f"ROC: {roc_auc_score(Y_true, Y_prob):.3f}")
-    auc = roc_auc_score(Y_true, Y_prob)
-    print(classification_report(Y_true, Y_pred))
+    print(f"ROC: {roc_auc_score(y_true, y_prob):.3f}")
+    auc = roc_auc_score(y_true, y_prob)
+    print(classification_report(y_true, y_pred))
 
-    return loss, auc, Y_prob, Y_pred, Y_true
+    return loss, auc, y_prob, y_pred, y_true
 
 
 def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):

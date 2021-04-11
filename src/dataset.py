@@ -21,13 +21,14 @@ def make_data_transform(input_size, sample_mean=config.SAMPLE_MEAN, sample_std=c
     sample_std = [sample_std] * num_channels
     return {
                 'train': transforms.Compose([
-                    transforms.RandomResizedCrop(input_size),
+                    #transforms.Resize(256),
+                    transforms.RandomResizedCrop(input_size),  # usually 224
                     transforms.RandomHorizontalFlip(),  # data augmentation
                     transforms.ToTensor(),
                     transforms.Normalize(sample_mean, sample_std)
                 ]),
                 'test': transforms.Compose([
-                    transforms.Resize(int(input_size * scale)),
+                    transforms.Resize(256),
                     transforms.CenterCrop(input_size),
                     transforms.ToTensor(),
                     transforms.Normalize(sample_mean, sample_std)

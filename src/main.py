@@ -6,10 +6,8 @@ from model import initialize_model
 import torch
 from torch import nn
 from torch import optim
-from torch.utils.tensorboard import SummaryWriter
 
 writer = SummaryWriter()
-
 
 def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_model_loss=False, greyscale=False):
     # load labels
@@ -46,6 +44,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_mod
     # Initialize the model for this run
     model, input_size = initialize_model(model_name, config.NUM_CLASSES, config.FEATURE_EXTRACT, use_pretrained)
     model = model.to(config.DEVICE)
+
     print(model)  # print structure
     print(f"Input image size: {input_size}")
 
@@ -59,7 +58,9 @@ def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_mod
     val_data_loader = load_data(df_val, label=config.DISEASE, transform=tfx['test'], shuffle=False, greyscale=greyscale)
 
     # Optimizer
-    optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
+    #optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
+    # to unfreeze more trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
 
     # train
     model, t_losses, v_losses, v_best_auc, v_rocs, best_model_pth = train_model(model, train_data_loader,
@@ -81,4 +82,3 @@ def main(model_name=config.MODEL_NAME, use_pretrained=True,verbose=False,use_mod
 if __name__ == "__main__":
     main(model_name='capsnet', use_pretrained=False,verbose=True, use_model_loss=True, greyscale=True)
     writer.close()
-
