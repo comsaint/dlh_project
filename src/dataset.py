@@ -22,8 +22,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 def make_data_transform(input_size):
     return {
                 'train': transforms.Compose([
-                    #transforms.Resize(256),
-                    transforms.RandomResizedCrop(input_size),  # usually 224
+                    transforms.Resize(256),
+                    #transforms.RandomResizedCrop(input_size),  # usually 224
+                    transforms.RandomCrop(input_size),  # usually 224
                     transforms.RandomHorizontalFlip(),  # data augmentation
                     transforms.ToTensor(),
                 ]),

@@ -20,7 +20,7 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 scaler = GradScaler()
-gradient_accumulations = 16
+gradient_accumulations = 32
 
 
 def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=None, num_epochs=config.NUM_EPOCHS,
@@ -48,7 +48,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
             # forward + backward + optimize
             outputs = m(inputs)
             loss = criterion(outputs, labels)
-            loss = torch.mean(loss)
+            #loss = torch.mean(loss)
             scaler.scale(loss/gradient_accumulations).backward()
 
             # gradient accumulation trick
@@ -78,14 +78,16 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
 
         # validate every epoch
         print("Validating...")
-        val_loss, val_auc, _, _, _ = eval_model(m, valid_loader, criterion)
+        val_loss, val_auc, y_prob, _, y_true = eval_model(m, valid_loader, criterion)
         print(f"Validation loss: {val_loss:>4f}")
         print(f"Validation ROC: {val_auc:>3f}")
         writer.add_scalar("Loss/val", val_loss, epoch)
         writer.add_scalar("ROCAUC/val", val_auc, epoch)
+        writer.add_pr_curve('PR/val', y_true, y_prob, epoch)
 
         # step the learning rate
-        scheduler.step(val_loss)
+        if scheduler is not None:
+            scheduler.step()
 
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
@@ -120,7 +122,7 @@ def eval_model(model, loader, criterion, threshold=0.50, verbose=True):
             y_prob.append(probs)
             y_true.append(labels)
             y_pred.append(predicted)
-            loss += float(torch.mean(criterion(probs, labels)))
+            loss += float(criterion(probs, labels))
     loss = loss/len(loader)
 
     # convert to numpy
@@ -133,7 +135,7 @@ def eval_model(model, loader, criterion, threshold=0.50, verbose=True):
 
     # print result
     if verbose:
-        print(classification_report(y_true, y_pred, labels=labels))
+        print(classification_report(y_true, y_pred))
 
     return loss, macro_roc_auc, y_prob, y_pred, y_true
 

@@ -11,18 +11,19 @@ TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
 
 # Hyperparamenters
-NUM_CLASSES = 14  # 14 diseases (+1 if include 'No Finding')
+NUM_CLASSES = 15  # 14 diseases (+1 if include 'No Finding')
 USE_PRETRAIN = False
 FEATURE_EXTRACT = False  # must be false if USE_PRETRAIN==False
 MODEL_NAME = 'resnext50'
 VAL_SIZE = 0.1
-NUM_EPOCHS = 30
-LEARNING_RATE = 0.0005
-BATCH_SIZE = 16
+NUM_EPOCHS = 50
+LEARNING_RATE = 0.01
+BATCH_SIZE = 64
 
 # Utilities
 NUM_WORKERS = 7
-SEED = 1
+SEED = 42
+WRITER_NAME = 'runs/experiment_reproduce_1'
 
 # Other settings
 SAMPLING = 0  # number of samples of input data, to reduce data size (for quick test). 0 to disable.

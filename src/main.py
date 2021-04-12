@@ -4,10 +4,11 @@ from dataset import make_data_transform, load_data
 from data_processing import load_data_file, train_test_split, make_train_test_split
 from model import initialize_model
 from train_model import save_model
+import numpy as np
 import torch
 from torch import nn
 from torch import optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
 from utils import writer
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -31,6 +32,11 @@ def main():
     assert (len(df_train) + len(df_val) + len(df_test)) == len(df_data), \
         "Total number of images does not equal to sum of train+val+test!"
 
+    # class weight
+    class_weight = 1/np.mean(df_data[lst_labels])
+    print(f"Class weights:\nws3 {class_weight}")
+    class_weight = torch.FloatTensor(class_weight.tolist())
+
     # Initialize the model for this run
     model, input_size = initialize_model(config.MODEL_NAME, config.NUM_CLASSES)
     model = model.to(device)
@@ -42,19 +48,25 @@ def main():
     val_data_loader = load_data(df_val, transform=tfx['test'], shuffle=False)
 
     # visualize the model in TensorBoard
-    _img, _ = next(iter(train_data_loader))
-    writer.add_graph(model, _img.to(device))
+    #_img, _ = next(iter(train_data_loader))
+    #writer.add_graph(model, _img.to(device))
 
     # Criterion
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
     # note we do the sigmoid here instead of inside model for numerical stability
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(reduction='mean', pos_weight=class_weight)
 
     # Optimizer
-    # to unfreeze more trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
-    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
+    # to unfreeze certain trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
+    # Adam
+    # optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
+    # SGD
+    optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
+                          lr=config.LEARNING_RATE, momentum=0.9, weight_decay=0.0001)
     # wrap by scheduler
     scheduler = ReduceLROnPlateau(optimizer, 'min')
+    #lr_fn = lambda epoch: config.LEARNING_RATE if epoch <= 20 else config.LEARNING_RATE/10
+    #scheduler = LambdaLR(optimizer, lr_lambda=lr_fn)
 
     # train
     model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \
