@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch import optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils import writer
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -35,11 +35,12 @@ def main():
     # class weight
     class_weight = 1/np.mean(df_data[lst_labels])
     print(f"Class weights:\nws3 {class_weight}")
-    class_weight = torch.FloatTensor(class_weight.tolist())
+    class_weight = torch.FloatTensor(class_weight.tolist()).to(device)
 
     # Initialize the model for this run
     model, input_size = initialize_model(config.MODEL_NAME, config.NUM_CLASSES)
     model = model.to(device)
+    print(f"Model: {config.MODEL_NAME}")
     print(f"Input image size: {input_size}")
 
     # make data loader

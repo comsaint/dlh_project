@@ -87,7 +87,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
 
         # step the learning rate
         if scheduler is not None:
-            scheduler.step()
+            scheduler.step(val_loss)
 
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
