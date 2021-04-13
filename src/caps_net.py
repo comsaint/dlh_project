@@ -312,10 +312,13 @@ class CapsNet(nn.Module):
             reconstruct_error = reconstruct_error.mean()    
         
         return reconstruct_error
-            
-    def get_preduction(self, out):
+
+    def get_prediction(self, out):
         length = ((out ** 2).sum(dim=2, keepdim=True) ** 0.5)
         
-        y_hat = length.data.max(1)[1].cpu()
-        
+        y_hat = length.data.max(1)[1].squeeze(-1)
+        y_hat = y_hat.type(torch.LongTensor)
         return y_hat
+
+    def get_probabilities(self, out):
+        return ((out ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze().squeeze()

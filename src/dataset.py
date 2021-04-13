@@ -16,6 +16,7 @@ random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
+
 def make_data_transform(input_size):
     return {
                 'train': transforms.Compose([
@@ -23,6 +24,7 @@ def make_data_transform(input_size):
                     transforms.RandomResizedCrop(input_size),  # usually 224
                     transforms.RandomHorizontalFlip(),  # data augmentation
                     transforms.ToTensor(),
+                    # normalize?
                 ]),
                 'test': transforms.Compose([
                     transforms.Resize(256),
@@ -59,7 +61,8 @@ class NihDataset(Dataset):
         return image, target
 
 
-def load_data(dataframe, label, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=False):
+def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS,
+              greyscale=False):
     """
     Data Loader with batch loading and transform.
     """

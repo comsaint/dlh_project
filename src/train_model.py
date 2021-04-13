@@ -6,7 +6,7 @@ import config
 from math import inf
 import numpy as np
 import torch
-from sklearn.metrics import roc_auc_score, classification_report
+from sklearn.metrics import classification_report
 from utils import calculate_metric
 from utils import writer
 
@@ -16,6 +16,7 @@ random.seed(config.SEED)
 np.random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
+
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS, use_model_loss=False,verbose=True):
 
@@ -37,7 +38,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         running_loss = 0.0
         for i, (inputs, labels) in enumerate(train_loader, 0):
             
-            iterations = len(train_data_loader)
+            iterations = len(train_loader)
             
             if config.DEVICE == 'cuda':
                 torch.cuda.empty_cache()
@@ -97,7 +98,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         val_rocs.append(val_auc)
         
         # save model if best ROC
-        if val_auc > best_val_roc:
+        if val_auc > roc_at_best_val_loss:
             best_val_roc = val_auc
             roc_at_best_val_loss = val_rocs
             best_model_path = save_model(model, epoch, best=True)
@@ -159,7 +160,6 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
         print(classification_report(y_true, y_pred))
 
     return loss, macro_roc_auc, y_prob, y_pred, y_true
-
 
 
 def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
