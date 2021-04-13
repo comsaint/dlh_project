@@ -21,3 +21,12 @@
 7. Run `python main.py`. You will see the training progress in console print.
     - (Optional) you may monitor the training loss with TensorBoard by running `tensorboard --logdir=runs` in `\src`.
 8. After training completes, look at the result on console. Also, the trained models are under `model/` folder.
+
+# Notes
+
+1. The `src/config.py` is the primary configuration file.
+   - `NUM_CLASS` must be either set to **14** (for each disease) or **15** (14 diseases + 1 'No Finding').
+   - `LEARNING_RATE` controls the training process. High learning rate leads to faster training, but may suffer from oscillation (loss moving up and down) or overshoot (training loss goes up). It will be controlled by a scheduler later.
+   - Different `SEED` leads to different result.
+2. You may use TensorBoard to monitor the training process: `cd` to `src` and run `tensorboard --logdir=runs`.
+3. Trained models are under `./models`. By default the model is saved every 5 epochs, plus the final model and the model with the best validation loss are also saved. There is a script `src/test_model.py` which you can use to quickly test the performance of a saved model given its path and architecture.

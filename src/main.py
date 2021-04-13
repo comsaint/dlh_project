@@ -9,6 +9,7 @@ from torch import nn
 from torch import optim
 from utils import writer
 
+
 def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbose=False,use_model_loss=False, greyscale=False):
     # load labels
     df_data, lst_labels = load_data_file(sampling=config.SAMPLING)
@@ -52,6 +53,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
     # note we do the sigmoid here instead of inside model for numerical stability
     criterion = nn.BCEWithLogitsLoss()
+    #criterion = nn.NLLLoss()
 
     # Optimizer
     # to unfreeze more trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`

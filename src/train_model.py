@@ -18,6 +18,7 @@ np.random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
+
 def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epochs=config.NUM_EPOCHS, use_model_loss=False,verbose=True):
 
     print(f"Training started") 
@@ -101,9 +102,9 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
         
-        # save model if best ROC
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if val_auc > roc_at_best_val_loss:
+            best_val_roc = val_auc
+
             roc_at_best_val_loss = val_rocs
             best_model_path = save_model(model, epoch, best=True)
         writer.flush()

@@ -18,7 +18,7 @@ TEST_FILE = 'test_list.txt'
 NUM_CLASSES = 14  # 14 diseases (+1 if include 'No Finding')
 USE_PRETRAIN = True
 FEATURE_EXTRACT = True  # must be false if USE_PRETRAIN==False
-MODEL_NAME = 'resnext50'
+MODEL_NAME = 'densenet'
 VAL_SIZE = 0.1
 NUM_EPOCHS = 30
 LEARNING_RATE = 0.0005

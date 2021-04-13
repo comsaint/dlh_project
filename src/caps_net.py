@@ -352,3 +352,6 @@ class CapsNet(nn.Module):
         y_hat = (length.data.max(2)[0]).cpu()
         
         return y_hat
+
+    def get_probabilities(self, out):
+        return ((out ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze().squeeze()

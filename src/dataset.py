@@ -16,6 +16,7 @@ random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
+
 def make_data_transform(input_size):
     return {
                 'train': transforms.Compose([
@@ -23,6 +24,7 @@ def make_data_transform(input_size):
                     transforms.RandomResizedCrop(input_size),  # usually 224
                     transforms.RandomHorizontalFlip(),  # data augmentation
                     transforms.ToTensor(),
+                    # normalize?
                 ]),
                 'test': transforms.Compose([
                     transforms.Resize(256),
