@@ -81,7 +81,8 @@ class CapsConvLayer(nn.Module):
                  routing           = True,
                  is_convUnit       = False,
                  num_iterations    = 3,
-                 primary_cap_class = CapsConvUnit,                 
+                 conv_unit_model   = None,      
+                 img_size          = 28           
                 ):
         
         super(CapsConvLayer, self).__init__()
@@ -93,6 +94,15 @@ class CapsConvLayer(nn.Module):
         self.num_capsules = num_capsules
         self.is_convUnit  = is_convUnit
         self.input_size   = input_size
+        self.img_size     = img_size
+        self.in_channels  = in_channels
+        
+        
+        if conv_unit_model:
+            self.conv_pre_model = True
+        else:
+            self.conv_pre_model = False
+        
         
         if self.routing:
             self.weights = nn.Parameter(torch.randn(1, self.input_size , self.num_classes, out_channels, self.num_capsules))
@@ -100,8 +110,10 @@ class CapsConvLayer(nn.Module):
         else:
             if self.is_convUnit:
         
-                if primary_cap_class.__name__ == 'CapsConvUnit':
-                    self.capsules = CapsConvUnit(
+                if self.conv_pre_model:
+                    self.net = conv_unit_model
+                
+                self.capsules = CapsConvUnit(
                             in_channels=in_channels, 
                             out_channels=out_channels, 
                             kernel_size=kernel_size, 
@@ -109,8 +121,6 @@ class CapsConvLayer(nn.Module):
                             padding=0, 
                             nl_activation=True
                         )
-                else:
-                    self.capsules = primary_cap_class(in_channels=in_channels,out_channels=out_channels)
                 
             else:
                 self.capsules = nn.ModuleList(
@@ -136,6 +146,10 @@ class CapsConvLayer(nn.Module):
         batch_size = x.size(0)
         
         if self.is_convUnit:
+            if self.conv_pre_model:
+                x = self.net(x)
+                x = x.view(batch_size, self.in_channels, self.img_size, self.img_size)
+                
             return self.capsules(x)
         
         if self.routing:
@@ -193,14 +207,18 @@ class CapsNet(nn.Module):
                  num_classes       = 10  , # 10
                  out_channels      = 16  , # 16
                  conv_kernel_size  = 9   ,
-                 primary_cap_class = CapsConvUnit
+                 conv_unit_model   = None,
+                 image_factor      = 1
                  ):
         
         super(CapsNet, self).__init__()
         
-        self.image_size     = img_size
-        self.image_channels = img_channels
-        self.num_classes    = num_classes
+        self.image_size        = img_size
+        self.image_channels    = img_channels
+        self.num_classes       = num_classes
+        self.conv_out_channels = conv_out_channels
+        self.conv_kernel_size  = conv_kernel_size
+        self.image_factor      = image_factor
                 
         self.conv = CapsConvLayer (
                  in_channels       = img_channels      , # *3
@@ -210,11 +228,21 @@ class CapsNet(nn.Module):
                  padding           = 0                 ,
                  routing           = False             ,
                  is_convUnit       = True              ,
-                 primary_cap_class = primary_cap_class
+                 conv_unit_model   = conv_unit_model   ,
+                 img_size          = img_size
                 )
                 
                 
         conv_output_volume = utils.conv_output_volume(img_size,conv_kernel_size,1,0)
+        #print(f'conv_output_volume = {conv_output_volume}')
+        
+        if conv_output_volume > 50:
+            self.pool = nn.MaxPool2d(conv_kernel_size, stride=3)
+            conv_output_volume = utils.conv_output_volume(conv_output_volume,conv_kernel_size,3,0)
+        else:
+            self.pool = nn.MaxPool2d(1, stride=1)        
+            
+        #print(f'conv_output_volume = {conv_output_volume}')
         
         self.primary = CapsConvLayer (
                  in_channels       = conv_out_channels , # *3
@@ -245,7 +273,7 @@ class CapsNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(int(2 * num_out_channels / 3), int(3 * num_out_channels / 2)),
             nn.ReLU(inplace=True),
-            nn.Linear(int(3 * num_out_channels / 2), img_size * img_size * img_channels),
+            nn.Linear(int(3 * num_out_channels / 2), (img_size*image_factor) * (img_size*image_factor) * img_channels),
             nn.Sigmoid()
         )
         
@@ -253,6 +281,7 @@ class CapsNet(nn.Module):
         
         out = x
         out = self.conv(out)
+        out = self.pool(out)
         out = self.primary(out)
         out = self.digit(out)
         
@@ -262,11 +291,13 @@ class CapsNet(nn.Module):
         
         margin_err      = self.margin_loss(x,y,y_hat,mean_error)
         reconstruct_err = 0
+        reconstructions = None
         
         if reconstruct:
-            reconstruct_err = self.reconstruct_loss(x,y_hat,mean_error)
+            reconstruct_err, reconstructions = self.reconstruct_loss(x,y_hat,mean_error)
+            return (margin_err + reconstruct_err, reconstructions)
             
-        return margin_err + reconstruct_err
+        return margin_err
         
     def margin_loss(self, x, y, y_hat, mean_error=True):    
         
@@ -277,7 +308,9 @@ class CapsNet(nn.Module):
         # Margin Loss
         left  = torch.max(0.9 - y_hat.unsqueeze(-1), Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
         right = torch.max(y_hat.unsqueeze(-1) - 0.1, Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
+        
         y_bar = y.view(batch,self.num_classes).to(config.DEVICE)
+        
         margin_error = (y_bar * left + 0.5  * (1. - y_bar) * right).sum(dim=1)
         
         if mean_error:
@@ -304,18 +337,18 @@ class CapsNet(nn.Module):
             masks[idx] = mask
         y_hat = torch.stack(masks, dim=0)
         
-        reconstructions = self.decoder(y_hat.view(batch, -1)).view(batch, self.image_channels, self.image_size, self.image_size)
+        reconstructions = self.decoder(y_hat.view(batch, -1)).view(batch, self.image_channels, int(self.image_size*self.image_factor), int(self.image_size*self.image_factor))
         
         # Reconstruction Loss
         reconstruct_error = torch.sum(((reconstructions - x).view(batch, -1) ** 2), dim=1) * 0.0005
         if mean_error:
             reconstruct_error = reconstruct_error.mean()    
         
-        return reconstruct_error
+        return reconstruct_error, reconstructions
             
     def get_preduction(self, out):
-        length = ((out ** 2).sum(dim=2, keepdim=True) ** 0.5)
+        length = ((out ** 2).sum(dim=2) ** 0.5)
         
-        y_hat = length.data.max(1)[1].cpu()
+        y_hat = (length.data.max(2)[0]).cpu()
         
         return y_hat

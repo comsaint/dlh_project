@@ -6,9 +6,10 @@ import config
 from math import inf
 import numpy as np
 import torch
-from sklearn.metrics import roc_auc_score, classification_report
+from sklearn.metrics import classification_report
 from utils import calculate_metric
 from utils import writer
+from torchvision.utils import save_image
 
 sys.path.insert(0, '../src')
 
@@ -32,20 +33,19 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
     for epoch in range(1, num_epochs + 1):  # loop over the dataset multiple times
         
         model.train()
-        print(f"Epoch {epoch+1}")
+        print(f"Epoch {epoch}")
         
         running_loss = 0.0
         for i, (inputs, labels) in enumerate(train_loader, 0):
             
-            iterations = len(train_data_loader)
+            iterations = len(train_loader)
             
             if config.DEVICE == 'cuda':
                 torch.cuda.empty_cache()
         
             # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = inputs.to(config.DEVICE), labels.type(torch.LongTensor).to(config.DEVICE)
-            labels = labels.type(torch.LongTensor)
-
+            inputs, labels = inputs.to(config.DEVICE), labels.to(config.DEVICE)
+            
             # zero the parameter gradients
             optimizer.zero_grad()
             
@@ -53,7 +53,10 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
             outputs = model(inputs).to(config.DEVICE)
             
             if use_model_loss:
-                loss = model.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
+                loss, reconstructions = model.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
+                
+                #Reproduce the decoded image in Run Directory
+                save_image(reconstructions, f'runs/reconstructions_epoch_{epoch}.png')
             else:
                 loss = criterion(outputs, labels)
             
@@ -62,6 +65,8 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
                 
             loss.backward()
             optimizer.step()
+            loss = torch.mean(loss)
+            running_loss += float(loss.item())
 
             loss = torch.mean(loss)
             
@@ -97,15 +102,15 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         val_rocs.append(val_auc)
         
         # save model if best ROC
-        if val_auc > best_val_roc:
-            best_val_roc = val_auc
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
             roc_at_best_val_loss = val_rocs
             best_model_path = save_model(model, epoch, best=True)
         writer.flush()
 
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
-    print(f"Best ROC achieved on validation set: {best_val_roc:3f}")
-    
+    print(f"Best ROC achieved on validation set: {best_val_loss:3f}")
+
     return model, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
 
 def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, verbose=True):
@@ -128,13 +133,13 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
                 torch.cuda.empty_cache()
                 
             probs = model(inputs.to(config.DEVICE))  # prediction probability
-            labels = labels.type(torch.LongTensor).to(config.DEVICE)  # true labels
+            labels = labels.to(config.DEVICE)  # true labels
             
             if use_model_loss:
                 loss += model.loss(inputs, probs, labels, mean_error=False, reconstruct=False).data[0]
                 probs = model.get_preduction(probs) 
             else:
-                loss += float(criterion(probs, labels))
+                loss += float(torch.mean(criterion(probs, labels)))
                 
             predicted = probs > threshold
             
@@ -150,7 +155,6 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
     y_pred = torch.cat(y_pred).detach().cpu().numpy()
     y_true = torch.cat(y_true).detach().cpu().numpy()
 
-    # TODO: use other metrics here
     # compute macro-average ROCAUC
     macro_roc_auc = calculate_metric(y_prob, y_true)
 
@@ -161,12 +165,11 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
     return loss, macro_roc_auc, y_prob, y_pred, y_true
 
 
-
 def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
     if best:
-        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_{config.DISEASE}_best.pth') #Name from class such as for CapsNet
+        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_best.pth') #Name from class such as for CapsNet
     else:
-        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_{config.DISEASE}_{num_epochs}epoch.pth')
+        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_{num_epochs}epoch.pth')
     
     torch.save(model.state_dict(), path)
     print(f"Model Saved at: {path}")

@@ -13,6 +13,7 @@ def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
         for param in model.parameters():
             param.requires_grad = False
 
+
 def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
@@ -95,8 +96,32 @@ def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, featu
         """ 
         Capsnet
         """
+        input_size = 28
+        model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9)        
+
+    elif model_name == "capsnet+densenet":
+        """ 
+        Capsnet + densenet
+        """
         input_size = 224
-        model_ft = CapsNet(img_size=input_size, img_channels=1,conv_out_channels=96, out_channels=16*3, num_classes=1,conv_kernel_size=9)        
+        image_factor = 8
+        img_size=int(input_size/image_factor)
+        model_ft = models.densenet121(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.classifier.in_features
+        model_ft.classifier = nn.Linear(num_ftrs, img_size*img_size*3 )
+        model_ft = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft, image_factor=image_factor)        
+
+    elif model_name == "capsnet+resnext50":
+        """ 
+        Capsnet + resnext50
+        """
+        input_size = 224
+        model_ft = models.resnext50_32x4d(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, input_size)
+        model_ft = CapsNet(img_size=input_size, img_channels=1,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft)        
 
     else:
         raise Exception(f"Invalid model name '{model_name}'")

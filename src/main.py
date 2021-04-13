@@ -1,8 +1,9 @@
-from train_model import train_model, eval_model, save_model
+from train_model import train_model, eval_model
 import config
 from dataset import make_data_transform, load_data
 from data_processing import load_data_file, train_test_split, make_train_test_split
 from model import initialize_model
+from train_model import save_model
 import torch
 from torch import nn
 from torch import optim
@@ -23,7 +24,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
 
     # use stratify, especially for imbalance dataset
     df_train, df_val = train_test_split(df_train_val)
-    
+
     print(f"Number of train images: {len(df_train)}")
     print(f"Number of val images: {len(df_val)}")
     print(f"Number of test images: {len(df_test)}")
@@ -38,17 +39,14 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     print(f"Input image size: {input_size}")
 
     # make data loader
-    if greyscale:
-        tfx = make_data_transform(input_size, num_channels=1)
-    else:
-        tfx = make_data_transform(input_size)
+    tfx = make_data_transform(input_size)
 
     train_data_loader = load_data(df_train, transform=tfx['train'], shuffle=True, greyscale=greyscale)
     val_data_loader = load_data(df_val, transform=tfx['test'], shuffle=False, greyscale=greyscale)
     
     # visualize the model in TensorBoard
     _img, _ = next(iter(train_data_loader))
-    writer.add_graph(model, _img.to(device))
+    writer.add_graph(model, _img.to(config.DEVICE))
     
     # Criterion
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
@@ -88,5 +86,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
 
 
 if __name__ == "__main__":
-    main(model_name='capsnet', use_pretrained=False,verbose=True, use_model_loss=True, greyscale=True)
+    main(model_name='capsnet+densenet', use_pretrained=True, verbose=True, use_model_loss=True, greyscale=False)
+    #main(model_name='capsnet', use_pretrained=True, verbose=True, use_model_loss=True, greyscale=False)
+    #main(verbose=True)
     writer.close()

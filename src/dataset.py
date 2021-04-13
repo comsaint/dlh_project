@@ -59,7 +59,7 @@ class NihDataset(Dataset):
         return image, target
 
 
-def load_data(dataframe, label, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=False):
+def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=False):
     """
     Data Loader with batch loading and transform.
     """
