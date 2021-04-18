@@ -2,8 +2,9 @@ import sys
 import torch.nn as nn
 from torchvision import models
 from config import USE_PRETRAIN, FEATURE_EXTRACT
+import torch
 
-from caps_net import CapsNet
+from caps_net import CapsNet, CapsNetworks
 
 sys.path.insert(0, '../src')
 
@@ -14,9 +15,11 @@ def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
             param.requires_grad = False
 
 
-def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
+def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
+    use_model_loss = False
+    
     if model_name == "resnet":
         """ 
         Resnet18
@@ -92,12 +95,29 @@ def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, featu
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
 
-    elif model_name == "capsnet":
+    elif model_name == "capsnet28_3_16":
+        """ 
+        Capsnet 28x28 3 Chnl in, 16 chnl out
+        """
+        input_size = 28
+        model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9) 
+        use_model_loss = True
+
+    elif model_name == "capsnet28_3_32":
         """ 
         Capsnet
         """
         input_size = 28
-        model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9)        
+        model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9) 
+        use_model_loss = True
+
+    elif model_name == "capsnet56_3_32":
+        """ 
+        Capsnet
+        """
+        input_size = 56
+        model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9) 
+        use_model_loss = True       
 
     elif model_name == "capsnet+densenet":
         """ 
@@ -111,20 +131,30 @@ def initialize_model(model_name, num_classes, use_pretrained=USE_PRETRAIN, featu
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, img_size*img_size*3 )
         model_ft = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft, image_factor=image_factor)        
+        use_model_loss = True       
 
     elif model_name == "capsnet+resnext50":
         """ 
         Capsnet + resnext50
         """
         input_size = 224
+        image_factor = 4
+        img_size=int(input_size/(image_factor))
         model_ft = models.resnext50_32x4d(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Linear(num_ftrs, input_size)
-        model_ft = CapsNet(img_size=input_size, img_channels=1,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft)        
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
+        model_ft.load_state_dict(torch.load('../models/resnext50_10epoch.pth'))
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, (img_size*img_size*3) )
+        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
+        model_cp.load_state_dict(torch.load('../models/capsnet56_3_32_5epoch.pth'))
+        
+        model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
+        use_model_loss = False              
 
     else:
         raise Exception(f"Invalid model name '{model_name}'")
 
-    return model_ft, input_size
+    return model_ft, input_size, use_model_loss
 

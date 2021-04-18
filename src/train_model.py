@@ -30,6 +30,7 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
     best_model_path = ''
+
     
     for epoch in range(1, num_epochs + 1):  # loop over the dataset multiple times
         
@@ -57,7 +58,11 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
                 loss, reconstructions = model.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
                 
                 #Reproduce the decoded image in Run Directory
-                save_image(reconstructions, f'runs/reconstructions_epoch_{epoch}.png')
+                if i % 25 == 0: 
+                    if i == 0 and epoch == 1: 
+                        save_image(inputs     , f'runs/{config.MODEL_NAME}/original_epoch_{epoch}_{int(i/25)}.png')
+                    save_image(reconstructions, f'runs/{config.MODEL_NAME}/reconstructions_epoch_{epoch}_{int(i/25)}.png')
+                
             else:
                 loss = criterion(outputs, labels)
             
@@ -75,19 +80,23 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
             
             # print statistics
             print(".", end="")
-            if verbose:
-                if i+1 % 10 == 0:  # print every 10 mini-batches
+            #if verbose:
+            if (i+1) % 10 == 0 :  # print every 10 mini-batches
                     print(f' Epoch: {epoch:>2} '
                           f' Bacth: {i + 1:>3} / {iterations} '
-                          f' loss: {running_loss / (i + 1):>4} '
-                          f' Average batch time: {(time.time() - start_time) / (i + 1)} secs')
+                          f' loss: {running_loss / (i + 1):>6.4f} '
+                          f' Average batch time: {(time.time() - start_time) / (i + 1):>4.3f} secs')
+            
+            if i % 50 == 0: 
+                save_model(model, f'autosave_{config.MODEL_NAME}', verbose=False)      
+        
         print(f"\nTraining loss: {running_loss / len(train_loader):>4f}")
         train_losses.append(running_loss / len(train_loader))  # keep trace of train loss in each epoch
         writer.add_scalar("Loss/train", running_loss / len(train_loader), epoch)  # write loss to TensorBoard
         print(f'Time elapsed: {(time.time()-start_time)/60.0:.1f} minutes.')
                 
         if epoch % 5 == 0:  # save every 5 epochs
-            save_model(model, epoch)  
+            save_model(model, epoch, verbose=False)  
 
         # validate every epoch
         print("Validating...")
@@ -102,9 +111,9 @@ def train_model(model, train_loader, valid_loader, criterion, optimizer, num_epo
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
         
-        if val_auc > roc_at_best_val_loss:
+        
+        if val_auc > best_val_loss:
             best_val_roc = val_auc
-
             roc_at_best_val_loss = val_rocs
             best_model_path = save_model(model, epoch, best=True)
         writer.flush()
@@ -128,7 +137,7 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
     
         # empty tensors to hold results
         y_prob, y_true, y_pred = [], [], []
-        for inputs, labels in loader:
+        for i, (inputs, labels) in enumerate(loader):
             
             if config.DEVICE == 'cuda':
                 torch.cuda.empty_cache()
@@ -149,7 +158,13 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
             y_true.append(labels)
             y_pred.append(predicted)
             
+            print(".", end="")
+            if (i+1) % 10 == 0 :  # print every 10 mini-batches
+                print(f' {int(i*100/len(loader)):>2}% complete ')
+            
     loss = loss/len(loader)
+    print(" 100% complete")
+            
     
     # convert to numpy
     y_prob = torch.cat(y_prob).detach().cpu().numpy()
@@ -166,14 +181,15 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
     return loss, macro_roc_auc, y_prob, y_pred, y_true
 
 
-def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
+def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False, verbose=True):
     if best:
-        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_best.pth') #Name from class such as for CapsNet
+        path = os.path.join(root_dir, model_dir, f'{config.MODEL_NAME}_best.pth') #Name from class such as for CapsNet
     else:
-        path = os.path.join(root_dir, model_dir, f'{model.__class__.__name__}_{num_epochs}epoch.pth')
+        path = os.path.join(root_dir, model_dir, f'{config.MODEL_NAME}_{num_epochs}epoch.pth')
     
     torch.save(model.state_dict(), path)
-    print(f"Model Saved at: {path}")
+    if verbose:
+        print(f"Model Saved at: {path}")
     return path
 
 

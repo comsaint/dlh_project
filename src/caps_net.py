@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+from torchvision import transforms
 
 # Other libs
 import numpy as np
@@ -24,8 +25,6 @@ torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 np.random.seed(1)
 
-# Set device
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Input a 4D tensor (batch, caps, vecs, prob ) 
 def non_linear_squashing(s, dim=-1):
@@ -219,6 +218,7 @@ class CapsNet(nn.Module):
         self.conv_out_channels = conv_out_channels
         self.conv_kernel_size  = conv_kernel_size
         self.image_factor      = image_factor
+        self.transform         = transforms.Compose([transforms.Resize(int(img_size))])
                 
         self.conv = CapsConvLayer (
                  in_channels       = img_channels      , # *3
@@ -273,7 +273,7 @@ class CapsNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(int(2 * num_out_channels / 3), int(3 * num_out_channels / 2)),
             nn.ReLU(inplace=True),
-            nn.Linear(int(3 * num_out_channels / 2), (img_size*image_factor) * (img_size*image_factor) * img_channels),
+            nn.Linear(int(3 * num_out_channels / 2), (img_size) * (img_size) * img_channels),
             nn.Sigmoid()
         )
         
@@ -295,7 +295,7 @@ class CapsNet(nn.Module):
         
         if reconstruct:
             reconstruct_err, reconstructions = self.reconstruct_loss(x,y_hat,mean_error)
-            return (margin_err + reconstruct_err, reconstructions)
+            return (margin_err + (reconstruct_err/self.image_factor), reconstructions)
             
         return margin_err
         
@@ -310,7 +310,7 @@ class CapsNet(nn.Module):
         right = torch.max(y_hat.unsqueeze(-1) - 0.1, Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
         
         y_bar = y.view(batch,self.num_classes).to(config.DEVICE)
-        
+        print(y_bar.shape)
         margin_error = (y_bar * left + 0.5  * (1. - y_bar) * right).sum(dim=1)
         
         if mean_error:
@@ -328,19 +328,26 @@ class CapsNet(nn.Module):
         index = index.data
         
         masks = [None] * batch
+        imges = [None] * batch
         
         for idx in range(batch):
             data = y_hat[idx]
-
+            
             mask = Variable(torch.zeros(data.size())).to(config.DEVICE)
             mask[index[idx]] = data[index[idx]]
             masks[idx] = mask
+            
+            imges[idx] = self.transform(x[idx])
+            
         y_hat = torch.stack(masks, dim=0)
+        x = torch.stack(imges, dim=0)
         
-        reconstructions = self.decoder(y_hat.view(batch, -1)).view(batch, self.image_channels, int(self.image_size*self.image_factor), int(self.image_size*self.image_factor))
+        #reconstructions = self.decoder(y_hat.view(batch, -1)).view(batch, self.image_channels, int(self.image_size*self.image_factor), int(self.image_size*self.image_factor))
+        reconstructions = self.decoder(y_hat.view(batch, -1)).view(batch, self.image_channels, int(self.image_size), int(self.image_size))
         
         # Reconstruction Loss
         reconstruct_error = torch.sum(((reconstructions - x).view(batch, -1) ** 2), dim=1) * 0.0005
+        
         if mean_error:
             reconstruct_error = reconstruct_error.mean()    
         
@@ -352,6 +359,36 @@ class CapsNet(nn.Module):
         y_hat = (length.data.max(2)[0]).cpu()
         
         return y_hat
+
+    def get_probabilities(self, out):
+        return ((out ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze().squeeze()
+
+class CapsNetworks(nn.Module):
+    def __init__(self,
+                 preNet,
+                 capsNet
+                 ):
+        
+        super(CapsNetworks, self).__init__()
+        
+        self.preNet     = preNet
+        self.capsNet    = capsNet
+       
+    def forward(self, x):
+        
+        out = x
+        if self.preNet:
+            out = self.preNet(out)
+        out = out.view(x.size(0), self.capsNet.image_channels, self.capsNet.image_size, self.capsNet.image_size)
+        out = self.capsNet(out)
+        
+        return self.get_probabilities(out) 
+        
+    def loss(self, x, y_hat, y, mean_error=True, reconstruct=False):     
+        return self.capsNet.loss(x,y_hat, y, mean_error=True, reconstruct=False)
+                
+    def get_preduction(self, out):
+        return self.capsNet.get_preduction(out)
 
     def get_probabilities(self, out):
         return ((out ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze().squeeze()

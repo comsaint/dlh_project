@@ -10,7 +10,7 @@ from torch import optim
 from utils import writer
 
 
-def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbose=False,use_model_loss=False, greyscale=False):
+def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbose=config.VERBOSE, greyscale=config.GREY_SCALE):
     # load labels
     df_data, lst_labels = load_data_file(sampling=config.SAMPLING)
     
@@ -33,9 +33,10 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
         "Total number of images does not equal to sum of train+val+test!"
 
     # Initialize the model for this run
-    model, input_size = initialize_model(model_name, config.NUM_CLASSES, use_pretrained=use_pretrained)
+    model, input_size, use_model_loss = initialize_model(model_name, config.NUM_CLASSES, use_pretrained=use_pretrained)
     model = model.to(config.DEVICE)
 
+    print(f'Model selected: {model_name}')  # print structure
     print(model)  # print structure
     print(f"Input image size: {input_size}")
 
@@ -88,7 +89,8 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
 
 
 if __name__ == "__main__":
-    main(model_name='capsnet+densenet', use_pretrained=True, verbose=True, use_model_loss=True, greyscale=False)
+    #main(model_name='capsnet+densenet', use_pretrained=True, verbose=True, greyscale=False)
     #main(model_name='capsnet', use_pretrained=True, verbose=True, use_model_loss=True, greyscale=False)
-    #main(verbose=True)
+    main(verbose=True)
     writer.close()
+    

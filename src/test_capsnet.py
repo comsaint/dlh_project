@@ -74,12 +74,12 @@ def main():
 
     model = CapsNet(img_size=28,
                     img_channels=1,
-                    conv_out_channels=96,
-                    out_channels=16*3,
+                    conv_out_channels=256,
+                    out_channels=16,
                     num_classes=10,
                     conv_kernel_size=9).to(config.DEVICE)
 
-    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), config.LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()  # sum up batch loss
 
     train(model, data_loader_train, optimizer, criterion, epoch=20)
