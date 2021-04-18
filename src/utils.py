@@ -7,7 +7,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 writer = SummaryWriter(f'runs/experiment_1')
 
-
 def conv_output_volume(W, F, S, P):
     """
     Given the input volume size $W$, the kernel/filter size $F$,
