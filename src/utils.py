@@ -1,9 +1,8 @@
 import math
-from config import NUM_CLASSES
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 from torch.utils.tensorboard import SummaryWriter
-from config import WRITER_NAME
+from config import NUM_CLASSES, WRITER_NAME
 
 writer = SummaryWriter(WRITER_NAME)
 
@@ -48,5 +47,5 @@ def calculate_metric(scores, truth):
 
     # Finally average it and compute AUC
     mean_tpr /= NUM_CLASSES
-    roc_auc = auc(all_fpr, mean_tpr)
-    return roc_auc
+    macro_roc_auc = auc(all_fpr, mean_tpr)
+    return macro_roc_auc, roc_auc

@@ -10,6 +10,7 @@ from torch import nn
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils import writer
+from sklearn.model_selection import GroupShuffleSplit
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -21,11 +22,17 @@ def main():
     # split the finding (disease) labels, to a list
     print(f"Number of labels: {len(lst_labels)}")
     print(f"Labels: {lst_labels}")
-    # split data into train, val and test set
+    # split data into train/val and test set
     df_train_val, df_test = make_train_test_split(df_data)
+    # make sure same patient does not exist in both train and val set
+    gss = GroupShuffleSplit(n_splits=1, test_size=config.VAL_SIZE)
+    for train_idx, test_idx in gss.split(df_train_val, groups=df_train_val['Patient ID']):
+        df_train, df_val = df_train_val[df_train_val['Patient ID'].isin(train_idx)], \
+                           df_train_val[df_train_val['Patient ID'].isin(test_idx)]
+    df_train.reset_index(inplace=True)
+    df_val.reset_index(inplace=True)
+    assert set(df_train['Patient ID'].tolist()).isdisjoint(set(df_val['Patient ID'].tolist()))
 
-    # use stratify, especially for imbalance dataset
-    df_train, df_val = train_test_split(df_train_val)
     print(f"Number of train images: {len(df_train)}")
     print(f"Number of val images: {len(df_val)}")
     print(f"Number of test images: {len(df_test)}")
@@ -33,8 +40,8 @@ def main():
         "Total number of images does not equal to sum of train+val+test!"
 
     # class weight
-    class_weight = 1/np.mean(df_data[lst_labels])
-    print(f"Class weights:\nws3 {class_weight}")
+    class_weight = 1/np.mean(df_data[lst_labels]) - 1  # ratio of #pos:#neg samples
+    print(f"Class weights:\n{class_weight}")
     class_weight = torch.FloatTensor(class_weight.tolist()).to(device)
 
     # Initialize the model for this run
@@ -55,19 +62,16 @@ def main():
     # Criterion
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
     # note we do the sigmoid here instead of inside model for numerical stability
-    criterion = nn.BCEWithLogitsLoss(reduction='mean', pos_weight=class_weight)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=class_weight)
 
     # Optimizer
     # to unfreeze certain trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
-    # Adam
-    # optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
-    # SGD
-    optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-                          lr=config.LEARNING_RATE, momentum=0.9, weight_decay=0.0001)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
+
     # wrap by scheduler
-    scheduler = ReduceLROnPlateau(optimizer, 'min')
-    #lr_fn = lambda epoch: config.LEARNING_RATE if epoch <= 20 else config.LEARNING_RATE/10
-    #scheduler = LambdaLR(optimizer, lr_lambda=lr_fn)
+    # switch the mode between 'min' and 'max' depending on the metric
+    # e.g. 'min' for loss (less is better), 'max' for AUC (greater is better)
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=3, verbose=True)
 
     # train
     model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \

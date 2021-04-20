@@ -20,22 +20,26 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 scaler = GradScaler()
-gradient_accumulations = 32
+gradient_accumulations = 1  # 1=no accumulation
 
 
 def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=None, num_epochs=config.NUM_EPOCHS,
-                verbose=True):
+                save_freq=5, verbose=True):
     print(f"Training started") 
     print(f"    Mode          : {device}")
     print(f"    Model type    : {type(m)}")
-    
+
     start_time = time.time()
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
     best_model_path = ''
-
+    best_epoch = 0
     m.zero_grad()
-    for epoch in range(1, num_epochs):  # loop over the dataset multiple times
+
+    # debug
+    save_checkpoint(model=m, epoch=0, optimizer=optimizer, loss=0.0)
+
+    for epoch in range(1, num_epochs+1):  # loop over the dataset multiple times
         m.train()
         print(f"Epoch {epoch}")
         
@@ -48,8 +52,8 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
             # forward + backward + optimize
             outputs = m(inputs)
             loss = criterion(outputs, labels)
-            #loss = torch.mean(loss)
             scaler.scale(loss/gradient_accumulations).backward()
+            running_loss += float(loss.item())
 
             # gradient accumulation trick
             # https://towardsdatascience.com/i-am-so-done-with-cuda-out-of-memory-c62f42947dca
@@ -57,7 +61,6 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
                 scaler.step(optimizer)
                 scaler.update()
                 m.zero_grad()
-            running_loss += float(loss.item())
 
             # print statistics
             print(".", end="")
@@ -65,20 +68,29 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
                 if i % 50 == 9:  # print every 50 mini-batches
                     print(f' Epoch: {epoch:>2}, '
                           f' Batch: {i + 1:>3} , '
-                          f' loss: {running_loss / (i + 1):>4} '
-                          f' Average batch time: {(time.time() - start_time) / (i + 1)} secs')
+                          f' loss: {running_loss / (i + 1):>4} ')
 
         print(f"\nTraining loss: {running_loss / len(train_loader):>4f}")
         train_losses.append(running_loss / len(train_loader))  # keep trace of train loss in each epoch
         writer.add_scalar("Loss/train", running_loss / len(train_loader), epoch)  # write loss to TensorBoard
         print(f'Time elapsed: {(time.time()-start_time)/60.0:.1f} minutes.')
 
-        if epoch % 5 == 0:  # save every 5 epochs
+        if epoch % save_freq == 0:  # save model for inference or training
             save_model(m, epoch)
+            save_checkpoint(m, epoch, optimizer, running_loss)
 
-        # validate every epoch
+        # validation
         print("Validating...")
+        m.eval()
         val_loss, val_auc, y_prob, _, y_true = eval_model(m, valid_loader, criterion)
+        val_losses.append(val_loss)
+        val_rocs.append(val_auc)
+        # save model if best ROC
+        if val_loss < best_val_loss:
+            best_epoch = epoch
+            best_val_loss = val_loss
+            roc_at_best_val_loss = val_auc
+            best_model_path = save_model(m, epoch, best=True)
         print(f"Validation loss: {val_loss:>4f}")
         print(f"Validation ROC: {val_auc:>3f}")
         writer.add_scalar("Loss/val", val_loss, epoch)
@@ -89,17 +101,10 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
         if scheduler is not None:
             scheduler.step(val_loss)
 
-        val_losses.append(val_loss)
-        val_rocs.append(val_auc)
-        # save model if best ROC
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            roc_at_best_val_loss = val_rocs
-            best_model_path = save_model(m, epoch, best=True)
         writer.flush()
 
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
-    print(f"Best ROC achieved on validation set: {best_val_loss:3f}")
+    print(f"Best ROC on validation set: {best_val_loss:3f}, achieved on epoch #{best_epoch}")
 
     return m, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
 
@@ -130,21 +135,44 @@ def eval_model(model, loader, criterion, threshold=0.50, verbose=True):
     y_pred = torch.cat(y_pred).detach().cpu().numpy()
     y_true = torch.cat(y_true).detach().cpu().numpy()
 
-    # compute macro-average ROCAUC
-    macro_roc_auc = calculate_metric(y_prob, y_true)
+    # compute macro-average ROCAUC, and ROCAUC of each class
+    macro_roc_auc, roc_aucs = calculate_metric(y_prob, y_true)
 
-    # print result
+    # print results
     if verbose:
-        print(classification_report(y_true, y_pred))
+        print(classification_report(y_true, y_pred, target_names=config.TEXT_LABELS))
+        print(f"Disease:{'':<22}ROCAUC")
+        for i, lb in enumerate(config.TEXT_LABELS):
+            print(f"{lb:<30}: {roc_aucs[i]:.4f}")
+        print(f"\nROCAUC (Macro): {macro_roc_auc}")
 
     return loss, macro_roc_auc, y_prob, y_pred, y_true
 
 
 def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
+    model_subdir = 'model_' + config.WRITER_NAME.split('/')[-1]
+    folder_path = os.path.join(root_dir, model_dir, model_subdir)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
     if best:
-        path = os.path.join(root_dir, model_dir, f'{config.MODEL_NAME}_best.pth')
+        path = os.path.join(folder_path, f'{config.MODEL_NAME}_best.pth')
     else:
-        path = os.path.join(root_dir, model_dir, f'{config.MODEL_NAME}_{num_epochs}epoch.pth')
+        path = os.path.join(folder_path, f'{config.MODEL_NAME}_{num_epochs}epoch.pth')
     torch.save(model.state_dict(), path)
     print(f"Model Saved at: {path}")
     return path
+
+
+def save_checkpoint(model, epoch, optimizer, loss):
+    root_dir = config.ROOT_PATH
+    ckpt_dir = config.CHECKPOINT_DIR
+    ckpt_subdir = 'checkpoint_' + config.WRITER_NAME.split('/')[-1]
+    path = os.path.join(root_dir, ckpt_dir, ckpt_subdir)
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss,
+    }, path)
+    print(f"Checkpoint saved: {path}")
+    return None
