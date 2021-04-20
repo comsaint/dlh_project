@@ -53,12 +53,13 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
             outputs = m(inputs).to(device)
             
             if use_model_loss:
-                loss, reconstructions = model.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
-                #Reproduce the decoded image in Run Directory
+                loss, reconstructions = m.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
+                # Reproduce the decoded image in Run Directory
                 if i % 25 == 0: 
                     if i == 0 and epoch == 1: 
-                        save_image(inputs     , f'runs/{config.MODEL_NAME}/original_epoch_{epoch}_{int(i/25)}.png')
-                        save_image(reconstructions, f'runs/{config.MODEL_NAME}/reconstructions_epoch_{epoch}_{int(i/25)}.png')
+                        save_image(inputs, f'runs/{config.MODEL_NAME}/original_epoch_{epoch}_{int(i/25)}.png')
+                        save_image(reconstructions,
+                                   f'runs/{config.MODEL_NAME}/reconstructions_epoch_{epoch}_{int(i/25)}.png')
             else:
                 loss = criterion(outputs, labels)
             
@@ -75,13 +76,13 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
             # print statistics
             print(".", end="")
             if verbose:
-                if (i+1) % 10 == 0 :  # print every 10 mini-batches
+                if (i+1) % 10 == 0:  # print every 10 mini-batches
                     print(f' Epoch: {epoch:>2} '
                           f' Bacth: {i + 1:>3} / {iterations} '
                           f' loss: {running_loss / (i + 1):>6.4f} '
                           f' Average batch time: {(time.time() - start_time) / (i + 1):>4.3f} secs')
             if i % 50 == 0: 
-                save_model(model, f'autosave_{config.MODEL_NAME}', verbose=False)
+                save_model(m, f'autosave_{config.MODEL_NAME}', verbose=False)
 
         print(f"\nTraining loss: {running_loss / len(train_loader):>4f}")
         train_losses.append(running_loss / len(train_loader))  # keep trace of train loss in each epoch
@@ -119,7 +120,8 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
     print(f"Best ROC on validation set: {best_val_loss:3f}, achieved on epoch #{best_epoch}")
 
-    return model, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
+    return m, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
+
 
 def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, verbose=True):
     """
@@ -191,11 +193,15 @@ def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MO
         print(f"Model Saved at: {path}")
     return path
 
+
 def save_checkpoint(model, epoch, optimizer, loss):
     root_dir = config.ROOT_PATH
     ckpt_dir = config.CHECKPOINT_DIR
+    folder_path = os.path.join(root_dir, ckpt_dir)
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
     ckpt_subdir = 'checkpoint_' + config.WRITER_NAME.split('/')[-1]
-    path = os.path.join(root_dir, ckpt_dir, ckpt_subdir)
+    path = os.path.join(folder_path, ckpt_subdir)
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
