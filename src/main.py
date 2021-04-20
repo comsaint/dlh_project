@@ -43,7 +43,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     # class weight
     class_weight = 1/np.mean(df_data[lst_labels]) - 1  # ratio of #pos:#neg samples
     print(f"Class weights:\n{class_weight}")
-    class_weight = torch.FloatTensor(class_weight.tolist()).to(device)
+    class_weight = torch.FloatTensor(class_weight.tolist()).to(config.DEVICE)
 
     # Initialize the model for this run
 
