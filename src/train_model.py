@@ -10,6 +10,7 @@ from sklearn.metrics import classification_report
 from torch.cuda.amp import GradScaler
 from utils import calculate_metric
 from utils import writer
+from torchvision.utils import save_image
 
 sys.path.insert(0, '../src')
 
@@ -24,58 +25,70 @@ gradient_accumulations = 1  # 1=no accumulation
 
 
 def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=None, num_epochs=config.NUM_EPOCHS,
-                save_freq=5, verbose=True):
+                save_freq=5, use_model_loss=False, verbose=True):
     print(f"Training started") 
     print(f"    Mode          : {device}")
     print(f"    Model type    : {type(m)}")
 
     start_time = time.time()
+
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
     best_model_path = ''
     best_epoch = 0
+    # similar to optimizer.zero_grad(). https://discuss.pytorch.org/t/model-zero-grad-or-optimizer-zero-grad/28426/6
     m.zero_grad()
-
-    # debug
-    save_checkpoint(model=m, epoch=0, optimizer=optimizer, loss=0.0)
-
     for epoch in range(1, num_epochs+1):  # loop over the dataset multiple times
         m.train()
         print(f"Epoch {epoch}")
         
         running_loss = 0.0
         for i, (inputs, labels) in enumerate(train_loader, 0):
+            iterations = len(train_loader)
             # get the inputs: a list of [inputs, labels]
             # `labels` is an 15-dim list of tensors
             inputs, labels = inputs.to(device), labels.to(device)
 
             # forward + backward + optimize
-            outputs = m(inputs)
-            loss = criterion(outputs, labels)
+            outputs = m(inputs).to(device)
+            
+            if use_model_loss:
+                loss, reconstructions = model.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
+                #Reproduce the decoded image in Run Directory
+                if i % 25 == 0: 
+                    if i == 0 and epoch == 1: 
+                        save_image(inputs     , f'runs/{config.MODEL_NAME}/original_epoch_{epoch}_{int(i/25)}.png')
+                        save_image(reconstructions, f'runs/{config.MODEL_NAME}/reconstructions_epoch_{epoch}_{int(i/25)}.png')
+            else:
+                loss = criterion(outputs, labels)
+            
             scaler.scale(loss/gradient_accumulations).backward()
-            running_loss += float(loss.item())
-
+            
             # gradient accumulation trick
             # https://towardsdatascience.com/i-am-so-done-with-cuda-out-of-memory-c62f42947dca
             if (i + 1) % gradient_accumulations == 0:
                 scaler.step(optimizer)
                 scaler.update()
                 m.zero_grad()
+                running_loss += float(loss.item())
 
             # print statistics
             print(".", end="")
             if verbose:
-                if i % 50 == 9:  # print every 50 mini-batches
-                    print(f' Epoch: {epoch:>2}, '
-                          f' Batch: {i + 1:>3} , '
-                          f' loss: {running_loss / (i + 1):>4} ')
+                if (i+1) % 10 == 0 :  # print every 10 mini-batches
+                    print(f' Epoch: {epoch:>2} '
+                          f' Bacth: {i + 1:>3} / {iterations} '
+                          f' loss: {running_loss / (i + 1):>6.4f} '
+                          f' Average batch time: {(time.time() - start_time) / (i + 1):>4.3f} secs')
+            if i % 50 == 0: 
+                save_model(model, f'autosave_{config.MODEL_NAME}', verbose=False)
 
         print(f"\nTraining loss: {running_loss / len(train_loader):>4f}")
         train_losses.append(running_loss / len(train_loader))  # keep trace of train loss in each epoch
         writer.add_scalar("Loss/train", running_loss / len(train_loader), epoch)  # write loss to TensorBoard
         print(f'Time elapsed: {(time.time()-start_time)/60.0:.1f} minutes.')
 
-        if epoch % save_freq == 0:  # save model for inference or training
+        if epoch % save_freq == 0:  # save model and checkpoint for inference or training
             save_model(m, epoch)
             save_checkpoint(m, epoch, optimizer, running_loss)
 
@@ -106,30 +119,45 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
     print(f"Best ROC on validation set: {best_val_loss:3f}, achieved on epoch #{best_epoch}")
 
-    return m, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
+    return model, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
 
-
-def eval_model(model, loader, criterion, threshold=0.50, verbose=True):
+def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, verbose=True):
     """
     evaluate test data on model and criterion, based of macro-average ROCAUC.
     """
+    
+    # validate every epoch
     loss = 0.0
+    
     # Turn off gradients for validation, saves memory and computations
     with torch.no_grad():
         model.eval()
+    
         # empty tensors to hold results
         y_prob, y_true, y_pred = [], [], []
-        for inputs, labels in loader:
-            probs = model(inputs.to(device))  # prediction probability
-            labels = labels.to(device)  # true labels
+        for i, (inputs, labels) in enumerate(loader):
+            
+            if config.DEVICE == 'cuda':
+                torch.cuda.empty_cache()
+                
+            probs = model(inputs.to(config.DEVICE))  # prediction probability
+            labels = labels.to(config.DEVICE)  # true labels
+            
+            if use_model_loss:
+                loss += model.loss(inputs, probs, labels, mean_error=False, reconstruct=False).data[0]
+                probs = model.get_preduction(probs) 
+            else:
+                loss += float(torch.mean(criterion(probs, labels)))
+                
             predicted = probs > threshold
+            
             # stack results
             y_prob.append(probs)
             y_true.append(labels)
             y_pred.append(predicted)
             loss += float(criterion(probs, labels))
     loss = loss/len(loader)
-
+    
     # convert to numpy
     y_prob = torch.cat(y_prob).detach().cpu().numpy()
     y_pred = torch.cat(y_pred).detach().cpu().numpy()
@@ -149,7 +177,7 @@ def eval_model(model, loader, criterion, threshold=0.50, verbose=True):
     return loss, macro_roc_auc, y_prob, y_pred, y_true
 
 
-def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
+def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False, verbose=True):
     model_subdir = 'model_' + config.WRITER_NAME.split('/')[-1]
     folder_path = os.path.join(root_dir, model_dir, model_subdir)
     if not os.path.exists(folder_path):
@@ -159,9 +187,9 @@ def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MO
     else:
         path = os.path.join(folder_path, f'{config.MODEL_NAME}_{num_epochs}epoch.pth')
     torch.save(model.state_dict(), path)
-    print(f"Model Saved at: {path}")
+    if verbose:
+        print(f"Model Saved at: {path}")
     return path
-
 
 def save_checkpoint(model, epoch, optimizer, loss):
     root_dir = config.ROOT_PATH

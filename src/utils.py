@@ -6,7 +6,6 @@ from config import NUM_CLASSES, WRITER_NAME
 
 writer = SummaryWriter(WRITER_NAME)
 
-
 def conv_output_volume(W, F, S, P):
     """
     Given the input volume size $W$, the kernel/filter size $F$,

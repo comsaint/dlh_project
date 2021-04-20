@@ -1,3 +1,6 @@
+import torch
+DEVICE = 'cpu' #'cuda' if torch.cuda.is_available() else 'cpu'
+
 # Paths
 ROOT_PATH='../'
 
@@ -6,6 +9,7 @@ DATA_DIR='data/'
 MODEL_DIR='models/'
 CHECKPOINT_DIR = 'checkpoints/'
 PROCESSED_DATA_DIR='data/processed'
+RAW_DATA_DIR='data/raw'
 
 INDEX_FILE = 'Data_Entry_2017.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
@@ -23,15 +27,18 @@ NUM_EPOCHS = 100
 LEARNING_RATE = 0.001
 BATCH_SIZE = 16
 
+# just for convenience. Better be inferred from data.
+if NUM_CLASSES == 14:
+    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+elif NUM_CLASSES == 15:
+    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax', 'No Finding']
+
 # Utilities
 NUM_WORKERS = 7
 SEED = 42
 
 # Other settings
 SAMPLING = 0  # number of samples of input data, to reduce data size (for quick test). 0 to disable.
-
-# just for convenience. Better be inferred from data.
-if NUM_CLASSES == 14:
-    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
-elif NUM_CLASSES == 15:
-    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax', 'No Finding']
+VERBOSE=True
+MODEL_LOSS=True
+GREY_SCALE=False

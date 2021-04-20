@@ -16,8 +16,6 @@ random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
 
 def make_data_transform(input_size=224):
     return {
@@ -39,16 +37,23 @@ def make_data_transform(input_size=224):
 
 
 class NihDataset(Dataset):
-    def __init__(self, dataframe, transform=None):
+    def __init__(self, dataframe, transform=None, greyscale=False):
         self.dataframe = dataframe
         self.transform = transform
+        self.greyscale = greyscale
 
     def __len__(self):
         return len(self.dataframe)
 
     def __getitem__(self, idx):
         # via .getband(), some images are know to have 4 channels. Here we convert them to 3-channel RGB.
-        image = Image.open(self.dataframe.loc[idx, 'Image_path']).convert('RGB')
+        image = Image.open(self.dataframe.loc[idx, 'Image_path'])
+        
+        if self.greyscale:
+            image = image.convert('L')
+        else:
+            image = image.convert('RGB')
+            
         target = self.dataframe.loc[idx, 'labels']  # label is a 15-dim vector
         target = torch.FloatTensor(target)
 
@@ -58,15 +63,16 @@ class NihDataset(Dataset):
         return image, target
 
 
-def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS):
+def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=False):
     """
     Data Loader with batch loading and transform.
     """
-    image_data = NihDataset(dataframe, transform=transform)
-    pin = device == 'cpu'
+    image_data = NihDataset(dataframe, transform=transform, greyscale=greyscale)
+    pin = config.DEVICE == 'cpu'
     loader = torch.utils.data.DataLoader(image_data,
                                          batch_size=batch_size,
                                          shuffle=shuffle,
                                          num_workers=num_workers,
                                          pin_memory=pin)
     return loader
+

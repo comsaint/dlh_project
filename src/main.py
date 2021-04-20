@@ -12,17 +12,18 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from utils import writer
 from sklearn.model_selection import GroupShuffleSplit
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-
-def main():
+def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbose=config.VERBOSE, greyscale=config.GREY_SCALE):
     # load labels
     df_data, lst_labels = load_data_file(sampling=config.SAMPLING)
+    
     print(f"Number of images: {len(df_data)}")
+    
     # split the finding (disease) labels, to a list
     print(f"Number of labels: {len(lst_labels)}")
     print(f"Labels: {lst_labels}")
-    # split data into train/val and test set
+    
+    # split data into train, val and test set
     df_train_val, df_test = make_train_test_split(df_data)
     # make sure same patient does not exist in both train and val set
     gss = GroupShuffleSplit(n_splits=1, test_size=config.VAL_SIZE)
@@ -32,7 +33,7 @@ def main():
     df_train.reset_index(inplace=True)
     df_val.reset_index(inplace=True)
     assert set(df_train['Patient ID'].tolist()).isdisjoint(set(df_val['Patient ID'].tolist()))
-
+    
     print(f"Number of train images: {len(df_train)}")
     print(f"Number of val images: {len(df_val)}")
     print(f"Number of test images: {len(df_test)}")
@@ -45,24 +46,23 @@ def main():
     class_weight = torch.FloatTensor(class_weight.tolist()).to(device)
 
     # Initialize the model for this run
-    model, input_size = initialize_model(config.MODEL_NAME, config.NUM_CLASSES)
-    model = model.to(device)
-    print(f"Model: {config.MODEL_NAME}")
+
+    model, input_size, use_model_loss = initialize_model(model_name, config.NUM_CLASSES, use_pretrained=use_pretrained)
+    model = model.to(config.DEVICE)
+    print(f'Model selected: {model_name}')  # print structure
     print(f"Input image size: {input_size}")
 
     # make data loader
     tfx = make_data_transform(input_size)
-    train_data_loader = load_data(df_train, transform=tfx['train'], shuffle=True)
-    val_data_loader = load_data(df_val, transform=tfx['test'], shuffle=False)
 
-    # visualize the model in TensorBoard
-    #_img, _ = next(iter(train_data_loader))
-    #writer.add_graph(model, _img.to(device))
+    train_data_loader = load_data(df_train, transform=tfx['train'], shuffle=True, greyscale=greyscale)
+    val_data_loader = load_data(df_val, transform=tfx['test'], shuffle=False, greyscale=greyscale)
 
     # Criterion
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
     # note we do the sigmoid here instead of inside model for numerical stability
     criterion = nn.BCEWithLogitsLoss(pos_weight=class_weight)
+
 
     # Optimizer
     # to unfreeze certain trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
@@ -77,15 +77,16 @@ def main():
     model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \
         train_model(model, train_data_loader, val_data_loader, criterion, optimizer, scheduler,
                     num_epochs=config.NUM_EPOCHS, verbose=False)
-    # save the final model
-    save_model(model, 999)
-
+    
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
-    test_data_loader = load_data(df_test, transform=tfx['test'], shuffle=False)
-    test_loss, test_auc, _, _, _ = eval_model(model.to(device), test_data_loader, criterion)
+    test_data_loader = load_data(df_test, transform=tfx['test'], shuffle=False, greyscale=greyscale)
+    
+    test_loss, test_auc, _, _, _ = eval_model(model.to(config.DEVICE), test_data_loader, criterion, use_model_loss)
+    
     print(f"Best Validation loss: {v_best_loss}; at which AUC = {roc_at_best_v_loss}")
     print(f"Test loss: {test_loss}; Test ROC: {test_auc}")
+        
     writer.add_scalar("Loss/test", test_loss, 0)
     writer.add_scalar("ROCAUC/test", test_auc, 0)
     writer.flush()
@@ -95,4 +96,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    #main(model_name='capsnet+densenet', use_pretrained=True, verbose=True, greyscale=False)
+    #main(model_name='capsnet', use_pretrained=True, verbose=True, use_model_loss=True, greyscale=False)
+    main(verbose=True)
+    writer.close()
+    
