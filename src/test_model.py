@@ -11,15 +11,15 @@ import config
 
 ###############################################
 # change the name and path to the model to load
-model_name = 'resnext50'
-model_path = '..\\models\\model_experiment_resnext_2_loss\\resnext50_best.pth'
+model_name = 'densenet'
+model_path = '..\\models\\AG_CNN_Global_epoch_1.pkl'
 ###############################################
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 if __name__ == "__main__":
     # prepare model
-    m, input_size = initialize_model(model_name, num_classes=config.NUM_CLASSES, use_pretrained=False, feature_extract=False)
+    m, input_size, _ = initialize_model(model_name, num_classes=config.NUM_CLASSES, use_pretrained=False, feature_extract=False)
     m.load_state_dict(torch.load(model_path))
 
     # prepare data
