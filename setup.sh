@@ -3,9 +3,10 @@ pip install -r requirements.txt
 kaggle datasets download -d nih-chest-xrays/data -p data/raw/
 
 unzip data/raw/data.zip -d data/raw/
-rm data/raw/data.zip
-mkdir data/processed
 
+rm /data/raw/data.zip
+
+mkdir data/processed
 mv data/raw/images_001/images/*.png data/processed
 mv data/raw/images_002/images/*.png data/processed
 mv data/raw/images_003/images/*.png data/processed

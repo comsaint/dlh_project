@@ -17,19 +17,21 @@ torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 
-def make_data_transform(input_size):
+def make_data_transform(input_size=224):
     return {
                 'train': transforms.Compose([
-                    #transforms.Resize(256),
-                    transforms.RandomResizedCrop(input_size),  # usually 224
+                    transforms.Resize(input_size),
+                    #transforms.RandomResizedCrop(input_size),  # usually 224
+                    #transforms.RandomCrop(input_size),  # usually 224
                     transforms.RandomHorizontalFlip(),  # data augmentation
                     transforms.ToTensor(),
-                    # normalize?
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                 ]),
                 'test': transforms.Compose([
-                    transforms.Resize(256),
-                    transforms.CenterCrop(input_size),
+                    transforms.Resize(input_size),
+                    #transforms.CenterCrop(input_size),
                     transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                 ]),
             }
 

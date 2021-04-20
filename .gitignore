@@ -50,4 +50,8 @@ Thumbs.db
 .idea/*
 data/raw/*
 data/processed/*.png
+checkpoints/*
+src/data/*
+src/runs/*
+bkup/*
 __pycache__
