@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from sklearn.metrics import classification_report
 from torch.cuda.amp import GradScaler
+import torch.backends.cudnn as cudnn
 from utils import calculate_metric
 from utils import writer
 from torchvision.utils import save_image
@@ -21,7 +22,7 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 scaler = GradScaler()
-gradient_accumulations = 1  # 1=no accumulation
+gradient_accumulations = 8  # 1=no accumulation
 
 
 def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=None, num_epochs=config.NUM_EPOCHS,
@@ -38,11 +39,13 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
     best_epoch = 0
     # similar to optimizer.zero_grad(). https://discuss.pytorch.org/t/model-zero-grad-or-optimizer-zero-grad/28426/6
     m.zero_grad()
+    cudnn.benchmark = True
     for epoch in range(1, num_epochs+1):  # loop over the dataset multiple times
         m.train()
         print(f"Epoch {epoch}")
         
         running_loss = 0.0
+        epoch_start_time = time.time()
         for i, (inputs, labels) in enumerate(train_loader, 0):
             iterations = len(train_loader)
             # get the inputs: a list of [inputs, labels]
@@ -80,7 +83,7 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
                     print(f' Epoch: {epoch:>2} '
                           f' Bacth: {i + 1:>3} / {iterations} '
                           f' loss: {running_loss / (i + 1):>6.4f} '
-                          f' Average batch time: {(time.time() - start_time) / (i + 1):>4.3f} secs')
+                          f' Average batch time: {(time.time() - epoch_start_time) / (i + 1):>4.3f} secs')
             if i % 50 == 0: 
                 save_model(m, f'autosave_{config.MODEL_NAME}', verbose=False)
 
@@ -130,18 +133,15 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
     
     # validate every epoch
     loss = 0.0
-    
+
     # Turn off gradients for validation, saves memory and computations
     with torch.no_grad():
         model.eval()
     
         # empty tensors to hold results
         y_prob, y_true, y_pred = [], [], []
+        cudnn.benchmark = True
         for i, (inputs, labels) in enumerate(loader):
-            
-            if config.DEVICE == 'cuda':
-                torch.cuda.empty_cache()
-                
             probs = model(inputs.to(config.DEVICE))  # prediction probability
             labels = labels.to(config.DEVICE)  # true labels
             
@@ -170,7 +170,7 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
 
     # print results
     if verbose:
-        print(classification_report(y_true, y_pred, target_names=config.TEXT_LABELS))
+        #print(classification_report(y_true, y_pred, target_names=config.TEXT_LABELS))
         print(f"Disease:{'':<22}ROCAUC")
         for i, lb in enumerate(config.TEXT_LABELS):
             print(f"{lb:<30}: {roc_aucs[i]:.4f}")

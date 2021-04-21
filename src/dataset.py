@@ -18,20 +18,23 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 
 def make_data_transform(input_size=224):
+    m = [0.485, 0.456, 0.406]
+    sd = [0.229, 0.224, 0.225]
     return {
                 'train': transforms.Compose([
                     transforms.Resize(input_size),
-                    #transforms.RandomResizedCrop(input_size),  # usually 224
-                    #transforms.RandomCrop(input_size),  # usually 224
-                    transforms.RandomHorizontalFlip(),  # data augmentation
+                    #transforms.RandomResizedCrop(input_size),
+                    #transforms.RandomCrop(input_size),
+                    transforms.CenterCrop(input_size),
+                    #transforms.RandomHorizontalFlip(),  # data augmentation
                     transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                    transforms.Normalize(mean=m, std=sd)
                 ]),
                 'test': transforms.Compose([
                     transforms.Resize(input_size),
-                    #transforms.CenterCrop(input_size),
+                    transforms.CenterCrop(input_size),
                     transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                    transforms.Normalize(mean=m, std=sd)
                 ]),
             }
 
@@ -54,7 +57,7 @@ class NihDataset(Dataset):
         else:
             image = image.convert('RGB')
             
-        target = self.dataframe.loc[idx, 'labels']  # label is a 15-dim vector
+        target = self.dataframe.loc[idx, 'labels']  # 'labels' is a 14/15-dim vector
         target = torch.FloatTensor(target)
 
         if self.transform:

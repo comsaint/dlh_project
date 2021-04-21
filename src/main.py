@@ -3,7 +3,6 @@ import config
 from dataset import make_data_transform, load_data
 from data_processing import load_data_file, train_test_split, make_train_test_split
 from model import initialize_model
-from train_model import save_model
 import numpy as np
 import torch
 from torch import nn
@@ -40,13 +39,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     assert (len(df_train) + len(df_val) + len(df_test)) == len(df_data), \
         "Total number of images does not equal to sum of train+val+test!"
 
-    # class weight
-    class_weight = 1/np.mean(df_data[lst_labels]) - 1  # ratio of #pos:#neg samples
-    print(f"Class weights:\n{class_weight}")
-    class_weight = torch.FloatTensor(class_weight.tolist()).to(config.DEVICE)
-
     # Initialize the model for this run
-
     model, input_size, use_model_loss = initialize_model(model_name, config.NUM_CLASSES, use_pretrained=use_pretrained)
     model = model.to(config.DEVICE)
     print(f'Model selected: {model_name}')  # print structure
@@ -61,8 +54,13 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     # Criterion
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
     # note we do the sigmoid here instead of inside model for numerical stability
-    criterion = nn.BCEWithLogitsLoss(pos_weight=class_weight)
-
+    if config.USE_CLASS_WEIGHT:
+        class_weight = 1 / np.mean(df_data[lst_labels]) - 1  # ratio of #pos:#neg samples
+        print(f"Class weights:\n{class_weight}")
+        class_weight = torch.FloatTensor(class_weight.tolist()).to(config.DEVICE)
+        criterion = nn.BCEWithLogitsLoss(pos_weight=class_weight)
+    else:
+        criterion = nn.BCEWithLogitsLoss()
 
     # Optimizer
     # to unfreeze certain trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
@@ -71,12 +69,12 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     # wrap by scheduler
     # switch the mode between 'min' and 'max' depending on the metric
     # e.g. 'min' for loss (less is better), 'max' for AUC (greater is better)
-    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=3, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=3, verbose=verbose)
 
     # train
     model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \
         train_model(model, train_data_loader, val_data_loader, criterion, optimizer, scheduler,
-                    num_epochs=config.NUM_EPOCHS, verbose=False)
+                    num_epochs=config.NUM_EPOCHS, verbose=verbose)
     
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
@@ -99,5 +97,3 @@ if __name__ == "__main__":
     #main(model_name='capsnet+densenet', use_pretrained=True, verbose=True, greyscale=False)
     #main(model_name='capsnet', use_pretrained=True, verbose=True, use_model_loss=True, greyscale=False)
     main(verbose=True)
-    writer.close()
-    
