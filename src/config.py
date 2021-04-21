@@ -15,17 +15,18 @@ INDEX_FILE = 'Data_Entry_2017.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
 
-WRITER_NAME = 'runs/experiment_testonly'
+WRITER_NAME = 'runs/experiment_densenet_reproduce_2'
 
 # Hyperparamenters
 NUM_CLASSES = 14  # 14 diseases (+1 if include 'No Finding')
 USE_PRETRAIN = True  # start with pretrained weights?
 FEATURE_EXTRACT = False  # must be false if USE_PRETRAIN==False
-MODEL_NAME = 'alexnet'
+MODEL_NAME = 'densenet'
 VAL_SIZE = 0.05
-NUM_EPOCHS = 5
-LEARNING_RATE = 0.01
-BATCH_SIZE = 16
+NUM_EPOCHS = 50
+LEARNING_RATE = 1e-4
+BATCH_SIZE = 32
+USE_CLASS_WEIGHT = False
 
 # Other settings
 SAMPLING = 0  # number of samples of input data, to reduce data size (for quick test). 0 to disable.

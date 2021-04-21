@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_curve, auc, roc_auc_score
 from torch.utils.tensorboard import SummaryWriter
 from config import NUM_CLASSES, WRITER_NAME
 
@@ -23,7 +23,7 @@ def maxpool_output_volume(W, F, S):
     """
     return int(math.ceil((W - F + 1) / S))
 
-
+'''
 def calculate_metric(scores, truth):
     """
     calculate multi-label, macro-average AUCROC
@@ -48,3 +48,12 @@ def calculate_metric(scores, truth):
     mean_tpr /= NUM_CLASSES
     macro_roc_auc = auc(all_fpr, mean_tpr)
     return macro_roc_auc, roc_auc
+'''
+
+
+def calculate_metric(scores, truth):
+    AUROCs = []
+    for i in range(NUM_CLASSES):
+        AUROCs.append(roc_auc_score(truth[:, i], scores[:, i]))
+    macro_auroc = np.mean(np.array(AUROCs))
+    return macro_auroc, AUROCs

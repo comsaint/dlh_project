@@ -12,7 +12,7 @@ import config
 ###############################################
 # change the name and path to the model to load
 model_name = 'densenet'
-model_path = '..\\models\\AG_CNN_Global_epoch_1.pkl'
+model_path = '..\\models\\model_experiment_densenet_reproduce_1\\densenet_best.pth'
 ###############################################
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
