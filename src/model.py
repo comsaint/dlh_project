@@ -1,31 +1,36 @@
 import sys
 import torch.nn as nn
 from torchvision import models
-from config import USE_PRETRAIN, FEATURE_EXTRACT
+from config import FINE_TUNE, NUM_CLASSES, MODEL_NAME, DEVICE
 import torch
-
 from caps_net import CapsNet, CapsNetworks
 
 sys.path.insert(0, '../src')
 
 
-def set_parameter_requires_grad(model, feature_extracting=FEATURE_EXTRACT):
+def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
         for param in model.parameters():
             param.requires_grad = False
 
 
-def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, feature_extract=FEATURE_EXTRACT):
+def initialize_model(model_name=MODEL_NAME,
+                     num_classes=NUM_CLASSES,
+                     fine_tune=FINE_TUNE):
     # Initialize these variables which will be set in this if statement. Each of these
     #   variables is model specific.
     use_model_loss = False
-    
+
     if model_name == "resnet":
         """ 
         Resnet18
         """
-        model_ft = models.resnet18(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.resnet18(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.resnet18(pretrained=False)
+            set_parameter_requires_grad(model_ft, feature_extracting=False)  # extract
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -34,8 +39,12 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """ 
         Alexnet
         """
-        model_ft = models.alexnet(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.alexnet(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.alexnet(pretrained=False)
+            set_parameter_requires_grad(model_ft, feature_extracting=False)  # extract
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
         input_size = 224
@@ -44,18 +53,26 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """ 
         VGG11_bn
         """
-        model_ft = models.vgg11_bn(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.vgg11_bn(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.vgg11_bn(pretrained=False)
+            set_parameter_requires_grad(model_ft, feature_extracting=False)  # extract
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
         input_size = 224
 
     elif model_name == "squeezenet":
-        """ 
+        """
         Squeezenet
         """
-        model_ft = models.squeezenet1_0(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.squeezenet1_0(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.squeezenet1_0(pretrained=False)
+            set_parameter_requires_grad(model_ft, feature_extracting=False)  # extract
         model_ft.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1,1), stride=(1,1))
         model_ft.num_classes = num_classes
         input_size = 224
@@ -64,8 +81,12 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """ 
         Densenet
         """
-        model_ft = models.densenet121(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.densenet121(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.densenet121(pretrained=False)
+            set_parameter_requires_grad(model_ft, feature_extracting=False)  # extract
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -75,8 +96,11 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         Inception v3
         Be careful, expects (299,299) sized images and has auxiliary output
         """
-        model_ft = models.inception_v3(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.inception_v3(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.inception_v3(pretrained=False)
         # Handle the auxilary net
         num_ftrs = model_ft.AuxLogits.fc.in_features
         model_ft.AuxLogits.fc = nn.Linear(num_ftrs, num_classes)
@@ -89,8 +113,11 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """
         ResNeXt-50
         """
-        model_ft = models.resnext50_32x4d(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.resnext50_32x4d(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.resnext50_32x4d(pretrained=False)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -99,8 +126,11 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """
         ResNet-50
         """
-        model_ft = models.resnet50(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.resnet50(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.resnet50(pretrained=False)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -109,8 +139,11 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """
         ResNeXt-101-32x8d
         """
-        model_ft = models.resnext101_32x8d(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.resnext101_32x8d(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.resnext101_32x8d(pretrained=False)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -146,8 +179,12 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         input_size = 224
         image_factor = 8
         img_size=int(input_size/image_factor)
-        model_ft = models.densenet121(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.densenet121(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.densenet121(pretrained=False)
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, img_size*img_size*3 )
         model_ft = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft, image_factor=image_factor)        
@@ -160,8 +197,11 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         input_size = 224
         image_factor = 4
         img_size=int(input_size/(image_factor))
-        model_ft = models.resnext50_32x4d(pretrained=use_pretrained)
-        set_parameter_requires_grad(model_ft, feature_extract)
+        if fine_tune:  # Tune cls layer, then all
+            model_ft = models.resnext50_32x4d(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.resnext50_32x4d(pretrained=False)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         model_ft.load_state_dict(torch.load('../models/resnext50_10epoch.pth'))
@@ -175,6 +215,8 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
 
     else:
         raise Exception(f"Invalid model name '{model_name}'")
+
+    model_ft = model_ft.to(DEVICE)
 
     return model_ft, input_size, use_model_loss
 

@@ -15,18 +15,19 @@ INDEX_FILE = 'Data_Entry_2017.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
 
-WRITER_NAME = 'runs/experiment_densenet_reproduce_2'
+WRITER_NAME = 'runs/experiment_densenet_val005_classweight_adamw_nopretrain_finetune_1'
 
 # Hyperparamenters
 NUM_CLASSES = 14  # 14 diseases (+1 if include 'No Finding')
-USE_PRETRAIN = True  # start with pretrained weights?
-FEATURE_EXTRACT = False  # must be false if USE_PRETRAIN==False
+FINE_TUNE = True  # if True, fine tune a pretrained model. Otherwise train from scratch
+FINE_TUNE_START_EPOCH = 8  # allow tuning of all parameters starting from this epoch. Ignore if FINE_TUNE==False.
 MODEL_NAME = 'densenet'
 VAL_SIZE = 0.05
 NUM_EPOCHS = 50
-LEARNING_RATE = 1e-4
-BATCH_SIZE = 32
-USE_CLASS_WEIGHT = False
+LEARNING_RATE = 1e-5
+BATCH_SIZE = 16
+EARLY_STOP_EPOCHS = 10  # stop training if no improvement compared to last best epoch
+USE_CLASS_WEIGHT = True  # weight class samples by prevalence
 
 # Other settings
 SAMPLING = 0  # number of samples of input data, to reduce data size (for quick test). 0 to disable.
@@ -40,6 +41,6 @@ SEED = 42
 
 # just for convenience. Better be inferred from data.
 if NUM_CLASSES == 14:
-    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',  'Pleural_Thickening', 'Hernia']
 elif NUM_CLASSES == 15:
-    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax', 'No Finding']
+    TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',  'Pleural_Thickening', 'Hernia', 'No Finding']

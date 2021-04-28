@@ -1,11 +1,9 @@
 import sys
 import config
-
 import random
 import os
 import torch
 from torch.utils.data import Dataset
-
 import torchvision.transforms as transforms
 from PIL import Image
 
@@ -24,9 +22,9 @@ def make_data_transform(input_size=224):
                 'train': transforms.Compose([
                     transforms.Resize(input_size),
                     #transforms.RandomResizedCrop(input_size),
-                    #transforms.RandomCrop(input_size),
                     transforms.CenterCrop(input_size),
                     #transforms.RandomHorizontalFlip(),  # data augmentation
+                    #transforms.RandomRotation(15),
                     transforms.ToTensor(),
                     transforms.Normalize(mean=m, std=sd)
                 ]),
@@ -66,7 +64,7 @@ class NihDataset(Dataset):
         return image, target
 
 
-def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=False):
+def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=config.GREY_SCALE):
     """
     Data Loader with batch loading and transform.
     """

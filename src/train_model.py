@@ -6,12 +6,12 @@ import config
 from math import inf
 import numpy as np
 import torch
-from sklearn.metrics import classification_report
-from torch.cuda.amp import GradScaler
 import torch.backends.cudnn as cudnn
 from utils import calculate_metric
-from utils import writer
+from utils import writer, make_optimizer_and_scheduler
 from torchvision.utils import save_image
+from model import set_parameter_requires_grad
+
 
 sys.path.insert(0, '../src')
 
@@ -21,12 +21,10 @@ torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-scaler = GradScaler()
-gradient_accumulations = 8  # 1=no accumulation
 
 
-def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=None, num_epochs=config.NUM_EPOCHS,
-                save_freq=5, use_model_loss=False, verbose=True):
+def train_model(m, train_loader, valid_loader, criterion, num_epochs=config.NUM_EPOCHS,
+                save_freq=5, use_model_loss=False, verbose=config.VERBOSE):
     print(f"Training started") 
     print(f"    Mode          : {device}")
     print(f"    Model type    : {type(m)}")
@@ -36,14 +34,28 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
     best_model_path = ''
-    best_epoch = 0
-    # similar to optimizer.zero_grad(). https://discuss.pytorch.org/t/model-zero-grad-or-optimizer-zero-grad/28426/6
-    m.zero_grad()
+    best_epoch = 1
     cudnn.benchmark = True
+
+    # initialize optimizer and scheduler
+    optimizer, scheduler = make_optimizer_and_scheduler(m)
+
     for epoch in range(1, num_epochs+1):  # loop over the dataset multiple times
+        print(f"\nEpoch {epoch}")
         m.train()
-        print(f"Epoch {epoch}")
-        
+        # tune cls layers for a few epochs, then tune the whole model
+        if config.FINE_TUNE and epoch == config.FINE_TUNE_START_EPOCH:
+            set_parameter_requires_grad(m, feature_extracting=False)
+            # update optimizer and scheduler to tune all parameter groups
+            optimizer, scheduler = make_optimizer_and_scheduler(m)
+            # TODO: decrease learning rate
+            '''
+            for param_group in optimizer.param_groups:
+                param_group[‘lr’]/=10
+            '''
+            if verbose:
+                print("Starting fine-tuning all model parameters")
+
         running_loss = 0.0
         epoch_start_time = time.time()
         for i, (inputs, labels) in enumerate(train_loader, 0):
@@ -51,10 +63,12 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
             # get the inputs: a list of [inputs, labels]
             # `labels` is an 15-dim list of tensors
             inputs, labels = inputs.to(device), labels.to(device)
-
             # forward + backward + optimize
             outputs = m(inputs).to(device)
-            
+
+            # similar to optimizer.zero_grad(). https://discuss.pytorch.org/t/model-zero-grad-or-optimizer-zero-grad/28426/6
+            m.zero_grad()
+
             if use_model_loss:
                 loss, reconstructions = m.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
                 # Reproduce the decoded image in Run Directory
@@ -65,26 +79,20 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
                                    f'runs/{config.MODEL_NAME}/reconstructions_epoch_{epoch}_{int(i/25)}.png')
             else:
                 loss = criterion(outputs, labels)
-            
-            scaler.scale(loss/gradient_accumulations).backward()
-            
-            # gradient accumulation trick
-            # https://towardsdatascience.com/i-am-so-done-with-cuda-out-of-memory-c62f42947dca
-            if (i + 1) % gradient_accumulations == 0:
-                scaler.step(optimizer)
-                scaler.update()
-                m.zero_grad()
-                running_loss += float(loss.item())
+
+            loss.backward()
+            optimizer.step()
+            running_loss += float(loss.item())
 
             # print statistics
-            print(".", end="")
             if verbose:
-                if (i+1) % 10 == 0:  # print every 10 mini-batches
+                print(".", end="")
+                if (i+1) % 50 == 0:  # print every 50 mini-batches
                     print(f' Epoch: {epoch:>2} '
                           f' Bacth: {i + 1:>3} / {iterations} '
                           f' loss: {running_loss / (i + 1):>6.4f} '
-                          f' Average batch time: {(time.time() - epoch_start_time) / (i + 1):>4.3f} secs')
-            if i % 50 == 0: 
+                          f' Average batch time: {(time.time() - epoch_start_time) / (i+1):>4.3f} secs ')
+            if (i+1) % 50 == 0:
                 save_model(m, f'autosave_{config.MODEL_NAME}', verbose=False)
 
         print(f"\nTraining loss: {running_loss / len(train_loader):>4f}")
@@ -120,17 +128,22 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
 
         writer.flush()
 
+        # early stopping
+        if epoch - best_epoch > config.EARLY_STOP_EPOCHS:
+            print(f"No improvement for {config.EARLY_STOP_EPOCHS} epochs. Stop training.")
+            break
+
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
     print(f"Best ROC on validation set: {best_val_loss:3f}, achieved on epoch #{best_epoch}")
 
     return m, train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_path
 
 
-def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, verbose=True):
+def eval_model(model, loader, criterion, use_model_loss=config.GREY_SCALE, threshold=0.50, verbose=config.VERBOSE):
     """
     evaluate test data on model and criterion, based of macro-average ROCAUC.
     """
-    
+    model = model.to(device)
     # validate every epoch
     loss = 0.0
 
@@ -157,7 +170,7 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
             y_prob.append(probs)
             y_true.append(labels)
             y_pred.append(predicted)
-            loss += float(criterion(probs, labels))
+
     loss = loss/len(loader)
     
     # convert to numpy

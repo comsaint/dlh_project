@@ -1,13 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # Notebook for preprocessing the data
-
-# import necessary Libraries
-#
-# It is important to set path for the python source code
-
-
+# Notebook for preprocessing the data
 import sys
 import os
 import pandas as pd
@@ -15,7 +9,7 @@ import random
 from glob import glob
 import config
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn import model_selection
+from sklearn.model_selection import GroupShuffleSplit
 
 sys.path.insert(0, '../src')
 random.seed(config.SEED)
@@ -83,14 +77,12 @@ def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, te
 
     df_train = df_data[df_data['Image Index'].isin(train_val_list)]
     df_valid = df_data[df_data['Image Index'].isin(test_list)]
-    df_train.reset_index(drop=True)
-    df_valid.reset_index(drop=True)
 
     return df_train.reset_index(drop=True), df_valid.reset_index(drop=True)
 
 
-def train_test_split(df, test_size=config.VAL_SIZE):
-    df_train, df_test = model_selection.train_test_split(df, test_size=test_size, random_state=config.SEED)
-    return df_train.reset_index(drop=True), df_test.reset_index(drop=True)
-
-
+def make_train_val_split(df, test_size=config.VAL_SIZE):
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=config.SEED)
+    for train_idx, test_idx in gss.split(df, groups=df['Patient ID']):
+        df_train, df_val = df[df['Patient ID'].isin(train_idx)], df[df['Patient ID'].isin(test_idx)]
+    return df_train.reset_index(drop=True), df_val.reset_index(drop=True)
