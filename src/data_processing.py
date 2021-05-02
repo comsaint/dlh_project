@@ -67,8 +67,11 @@ def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR
     return df, diseases
 
 
-def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, test_list_file=config.TEST_FILE,
-                          root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR):
+def make_train_test_split(df_data,
+                          train_val_list_file=config.TRAIN_VAL_FILE,
+                          test_list_file=config.TEST_FILE,
+                          root_dir=config.ROOT_PATH,
+                          data_dir=config.PROCESSED_DATA_DIR):
     with open(os.path.join(root_dir, data_dir, train_val_list_file)) as f:
         train_val_list = [x.strip() for x in f.readlines()]
 
@@ -84,5 +87,5 @@ def make_train_test_split(df_data, train_val_list_file=config.TRAIN_VAL_FILE, te
 def make_train_val_split(df, test_size=config.VAL_SIZE):
     gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=config.SEED)
     for train_idx, test_idx in gss.split(df, groups=df['Patient ID']):
-        df_train, df_val = df[df['Patient ID'].isin(train_idx)], df[df['Patient ID'].isin(test_idx)]
+        df_train, df_val = df[df.index.isin(train_idx)], df[df.index.isin(test_idx)]
     return df_train.reset_index(drop=True), df_val.reset_index(drop=True)

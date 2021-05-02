@@ -1,9 +1,11 @@
 import math
+import warnings
+
 import numpy as np
 from sklearn.metrics import roc_auc_score
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
-from config import NUM_CLASSES, WRITER_NAME, LEARNING_RATE, VERBOSE
+from config import NUM_CLASSES, WRITER_NAME, VERBOSE
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 writer = SummaryWriter(WRITER_NAME)
@@ -30,18 +32,22 @@ def maxpool_output_volume(W, F, S):
 def calculate_metric(scores, truth):
     AUROCs = []
     for i in range(NUM_CLASSES):
-        AUROCs.append(roc_auc_score(truth[:, i], scores[:, i]))
+        try:  # cater for sampled dataset, or early epochs
+            AUROCs.append(roc_auc_score(truth[:, i], scores[:, i]))
+            warnings.warn("Invalid AUROC returned due to only 1 class predicted. Set to 0.")
+        except ValueError:
+            AUROCs.append(0)
     macro_auroc = np.mean(np.array(AUROCs))
     return macro_auroc, AUROCs
 
 
-def make_optimizer_and_scheduler(m, lr=LEARNING_RATE):
+def make_optimizer_and_scheduler(m, lr, weight_decay=1e-2, factor=0.1, patience=2):
     # Optimizer
     # to unfreeze certain trainable layers, use: `optimizer.add_param_group({'params': model.<layer>.parameters()})`
     # optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=config.LEARNING_RATE)
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, m.parameters()), lr=lr, weight_decay=1e-2)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, m.parameters()), lr=lr, weight_decay=weight_decay)
     # wrap by scheduler
     # switch the mode between 'min' and 'max' depending on the metric
     # e.g. 'min' for loss (less is better), 'max' for AUC (greater is better)
-    scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=2, verbose=VERBOSE)
+    scheduler = ReduceLROnPlateau(optimizer, 'min', factor=factor, patience=patience, verbose=VERBOSE)
     return optimizer, scheduler

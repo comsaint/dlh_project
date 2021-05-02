@@ -22,7 +22,7 @@ def make_data_transform(input_size=224):
                 'train': transforms.Compose([
                     transforms.Resize(input_size),
                     #transforms.RandomResizedCrop(input_size),
-                    transforms.CenterCrop(input_size),
+                    #transforms.CenterCrop(input_size),
                     #transforms.RandomHorizontalFlip(),  # data augmentation
                     #transforms.RandomRotation(15),
                     transforms.ToTensor(),
@@ -30,7 +30,7 @@ def make_data_transform(input_size=224):
                 ]),
                 'test': transforms.Compose([
                     transforms.Resize(input_size),
-                    transforms.CenterCrop(input_size),
+                    #transforms.CenterCrop(input_size),
                     transforms.ToTensor(),
                     transforms.Normalize(mean=m, std=sd)
                 ]),
@@ -60,6 +60,11 @@ class NihDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
+        else:
+            tmp_tf = transforms.Compose([
+                    transforms.ToTensor(),
+                ])
+            image = tmp_tf(image)
 
         return image, target
 
@@ -76,4 +81,3 @@ def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=T
                                          num_workers=num_workers,
                                          pin_memory=pin)
     return loader
-
