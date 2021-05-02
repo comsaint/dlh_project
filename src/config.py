@@ -40,8 +40,10 @@ EARLY_STOP_EPOCHS = 10  # stop training if no improvement compared to last best 
 # initial learning rates
 GLOBAL_LEARNING_RATE = 1e-5
 LOCAL_LEARNING_RATE = 1e-5
-FUSION_LEARNING_RATE = 1e-3
+FUSION_LEARNING_RATE = 1e-5
 # TODO: settings for optimizer e.g. patience etc.
+
+HEATMAP_THRESHOLD = 0.70
 
 # Other settings
 SAMPLING = 0  # samples the input data to reduce data size for quick test. 0 to disable (i.e. use all training set)

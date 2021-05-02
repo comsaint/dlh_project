@@ -146,7 +146,12 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
 
         print(f"\nTraining loss: {f_running_loss / len(train_loader):>4f}")
         train_losses.append(f_running_loss / len(train_loader))  # keep trace of train loss in each epoch
-        writer.add_scalar("Loss/train", f_running_loss / len(train_loader), epoch)  # write loss to TensorBoard
+
+        # # write training loss to TensorBoard
+        writer.add_scalar("Loss/g_train", g_running_loss / len(train_loader), epoch)
+        writer.add_scalar("Loss/l_train", l_running_loss / len(train_loader), epoch)
+        writer.add_scalar("Loss/f_train", f_running_loss / len(train_loader), epoch)
+
         print(f'Time elapsed: {(time.time()-start_time)/60.0:.1f} minutes.')
 
         if epoch % save_freq == 0:  # save model and checkpoint for inference or training
@@ -263,6 +268,10 @@ def eval_models(models,
             f_predicted = f_probs > threshold
             f_y_prob.append(f_probs)
             f_y_pred.append(f_predicted)
+
+    g_loss /= len(loader)
+    l_loss /= len(loader)
+    f_loss /= len(loader)
 
     # convert to numpy
     g_y_prob = torch.cat(g_y_prob).detach().cpu().numpy()

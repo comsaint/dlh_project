@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 from PIL import Image
 from skimage.measure import label
-from config import DEVICE, NUM_CLASSES, LOCAL_IMAGE_SIZE, FINE_TUNE, GLOBAL_IMAGE_SIZE, NUM_WORKERS, BATCH_SIZE
+from config import DEVICE, NUM_CLASSES, LOCAL_IMAGE_SIZE, FINE_TUNE, GLOBAL_IMAGE_SIZE, NUM_WORKERS, HEATMAP_THRESHOLD
 from model import initialize_model
 from dataset import make_data_transform, load_data
 from data_processing import load_data_file
@@ -72,7 +72,7 @@ def attention_gen_patches(ori_image, fm_cuda):
     return patches
 
 
-def bin_image(heatmap, threshold=0.7):
+def bin_image(heatmap, threshold=HEATMAP_THRESHOLD):
     t = int(255*threshold)
     _, heatmap_bin = cv2.threshold(heatmap, t, 255, cv2.THRESH_BINARY)  # 178 ~= 255*0.7
     return heatmap_bin
