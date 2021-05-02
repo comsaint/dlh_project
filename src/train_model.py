@@ -12,6 +12,8 @@ import torch.backends.cudnn as cudnn
 from utils import calculate_metric
 from utils import writer
 from torchvision.utils import save_image
+import warnings
+import gc
 
 sys.path.insert(0, '../src')
 
@@ -20,15 +22,19 @@ np.random.seed(config.SEED)
 torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 scaler = GradScaler()
 gradient_accumulations = 8  # 1=no accumulation
 
+warnings.filterwarnings("ignore")
+warnings.simplefilter('always')
+
+from dataset import make_data_transform, load_data
+import pandas as pd
 
 def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=None, num_epochs=config.NUM_EPOCHS,
                 save_freq=5, use_model_loss=False, verbose=True):
     print(f"Training started") 
-    print(f"    Mode          : {device}")
+    print(f"    Mode          : {config.DEVICE}")
     print(f"    Model type    : {type(m)}")
 
     start_time = time.time()
@@ -37,10 +43,12 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
     best_val_loss, roc_at_best_val_loss = inf, 0.0
     best_model_path = ''
     best_epoch = 0
+    
     # similar to optimizer.zero_grad(). https://discuss.pytorch.org/t/model-zero-grad-or-optimizer-zero-grad/28426/6
     m.zero_grad()
     cudnn.benchmark = True
     for epoch in range(1, num_epochs+1):  # loop over the dataset multiple times
+        
         m.train()
         print(f"Epoch {epoch}")
         
@@ -48,45 +56,84 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
         epoch_start_time = time.time()
         for i, (inputs, labels) in enumerate(train_loader, 0):
             iterations = len(train_loader)
+            
+            if config.DEVICE == 'cuda':
+                torch.cuda.empty_cache()
+                
             # get the inputs: a list of [inputs, labels]
             # `labels` is an 15-dim list of tensors
-            inputs, labels = inputs.to(device), labels.to(device)
+            inputs, labels = inputs.to(config.DEVICE), labels.to(config.DEVICE)
 
             # forward + backward + optimize
-            outputs = m(inputs).to(device)
+            outputs = m(inputs)
+            hidden  = None
+            
+            if type(outputs) == tuple and len(outputs) == 2:
+                hidden  = outputs[1]
+                outputs = outputs[0]    
+                
+            outputs.to(config.DEVICE)
             
             if use_model_loss:
-                loss, reconstructions = m.loss(inputs, outputs, labels, mean_error=True, reconstruct=True)
+                reconstructions = None
+                loss = m.loss(inputs, outputs, labels, mean_error=True, reconstruct=False)
+                
+                if type(loss) == tuple and len(loss) == 2:
+                    reconstructions  = loss[1]
+                    loss = loss[0]
+                
                 # Reproduce the decoded image in Run Directory
-                if i % 25 == 0: 
-                    if i == 0 and epoch == 1: 
-                        save_image(inputs, f'runs/{config.MODEL_NAME}/original_epoch_{epoch}_{int(i/25)}.png')
-                        save_image(reconstructions,
-                                   f'runs/{config.MODEL_NAME}/reconstructions_epoch_{epoch}_{int(i/25)}.png')
+                if i == 0 and reconstructions != None: 
+                    folder_path = os.path.join(config.ROOT_PATH, config.OUT_DIR, config.MODEL_NAME)
+                    if not os.path.exists(folder_path):
+                        os.makedirs(folder_path)
+                    save_image(inputs         ,f'{folder_path}/epoch_{epoch}_01_original.png')
+                    if hidden != None:
+                        save_image(hidden     ,f'{folder_path}/epoch_{epoch}_02_hidden.png')
+                    save_image(reconstructions,f'{folder_path}/epoch_{epoch}_03_reconstr.png')
+                 
+                del reconstructions
+                
+                #probs = m.get_preduction(outputs).to(config.DEVICE) 
+                #loss = criterion(probs, labels).to(config.DEVICE)
+                #loss.requres_grad = True
+                #loss /= 2
             else:
                 loss = criterion(outputs, labels)
+                
+            if config.DEVICE == 'cuda':
+                #optimize gpu mem
+                del hidden,outputs,inputs,labels
+                gc.collect()
             
-            scaler.scale(loss/gradient_accumulations).backward()
+                torch.cuda.empty_cache()
+                scaler.scale(loss/gradient_accumulations).backward()
             
-            # gradient accumulation trick
-            # https://towardsdatascience.com/i-am-so-done-with-cuda-out-of-memory-c62f42947dca
-            if (i + 1) % gradient_accumulations == 0:
-                scaler.step(optimizer)
-                scaler.update()
-                m.zero_grad()
-                running_loss += float(loss.item())
+                # gradient accumulation trick
+                # https://towardsdatascience.com/i-am-so-done-with-cuda-out-of-memory-c62f42947dca
+                if (i + 1) % gradient_accumulations == 0:
+                    scaler.step(optimizer)
+                    scaler.update()
+                    m.zero_grad()
+                    running_loss += float(loss.item())
 
+            else:
+                # zero the parameter gradients
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                loss = torch.mean(loss)
+                running_loss += float(loss.item())
+                
             # print statistics
             print(".", end="")
             if verbose:
-                if (i+1) % 10 == 0:  # print every 10 mini-batches
+                if (i+1) % 50 == 0:  # print every 50 mini-batches
                     print(f' Epoch: {epoch:>2} '
                           f' Bacth: {i + 1:>3} / {iterations} '
                           f' loss: {running_loss / (i + 1):>6.4f} '
                           f' Average batch time: {(time.time() - epoch_start_time) / (i + 1):>4.3f} secs')
-            if i % 50 == 0: 
-                save_model(m, f'autosave_{config.MODEL_NAME}', verbose=False)
-
+            
         print(f"\nTraining loss: {running_loss / len(train_loader):>4f}")
         train_losses.append(running_loss / len(train_loader))  # keep trace of train loss in each epoch
         writer.add_scalar("Loss/train", running_loss / len(train_loader), epoch)  # write loss to TensorBoard
@@ -95,19 +142,23 @@ def train_model(m, train_loader, valid_loader, criterion, optimizer, scheduler=N
         if epoch % save_freq == 0:  # save model and checkpoint for inference or training
             save_model(m, epoch)
             save_checkpoint(m, epoch, optimizer, running_loss)
-
+        save_model(m, epoch) ################
+        
         # validation
         print("Validating...")
         m.eval()
-        val_loss, val_auc, y_prob, _, y_true = eval_model(m, valid_loader, criterion)
+        
+        val_loss, val_auc, y_prob, _, y_true = eval_model(m, valid_loader, criterion, use_model_loss=use_model_loss)
         val_losses.append(val_loss)
         val_rocs.append(val_auc)
+        
         # save model if best ROC
         if val_loss < best_val_loss:
             best_epoch = epoch
             best_val_loss = val_loss
             roc_at_best_val_loss = val_auc
             best_model_path = save_model(m, epoch, best=True)
+        
         print(f"Validation loss: {val_loss:>4f}")
         print(f"Validation ROC: {val_auc:>3f}")
         writer.add_scalar("Loss/val", val_loss, epoch)
@@ -143,11 +194,16 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
         cudnn.benchmark = True
         for i, (inputs, labels) in enumerate(loader):
             probs = model(inputs.to(config.DEVICE))  # prediction probability
+            
+            if type(probs) == tuple and len(probs) == 2:
+                probs = probs[0].to(config.DEVICE)    
+                
             labels = labels.to(config.DEVICE)  # true labels
             
             if use_model_loss:
-                loss += model.loss(inputs, probs, labels, mean_error=False, reconstruct=False).data[0]
-                probs = model.get_preduction(probs) 
+                loss += model.loss(inputs, probs, labels, mean_error=True, reconstruct=False).item()
+                probs = model.get_preduction(probs).to(config.DEVICE) 
+                #loss += float(torch.mean(criterion(probs, labels)))
             else:
                 loss += float(torch.mean(criterion(probs, labels)))
                 
@@ -157,13 +213,22 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
             y_prob.append(probs)
             y_true.append(labels)
             y_pred.append(predicted)
+            
+            print(".", end="")
+            if (i+1) % 10 == 0 :  # print every 10 mini-batches
+                print(f' {int(i*100/len(loader)):>2}% complete ')
+                
             loss += float(criterion(probs, labels))
+    
+    print(" 100% complete")
     loss = loss/len(loader)
     
     # convert to numpy
     y_prob = torch.cat(y_prob).detach().cpu().numpy()
     y_pred = torch.cat(y_pred).detach().cpu().numpy()
     y_true = torch.cat(y_true).detach().cpu().numpy()
+    
+    
 
     # compute macro-average ROCAUC, and ROCAUC of each class
     macro_roc_auc, roc_aucs = calculate_metric(y_prob, y_true)
@@ -180,7 +245,7 @@ def eval_model(model, loader, criterion, use_model_loss=False, threshold=0.50, v
 
 
 def save_model(model, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False, verbose=True):
-    model_subdir = 'model_' + config.WRITER_NAME.split('/')[-1]
+    model_subdir = 'model_' + config.MODEL_NAME
     folder_path = os.path.join(root_dir, model_dir, model_subdir)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
@@ -200,7 +265,7 @@ def save_checkpoint(model, epoch, optimizer, loss):
     folder_path = os.path.join(root_dir, ckpt_dir)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
-    ckpt_subdir = 'checkpoint_' + config.WRITER_NAME.split('/')[-1]
+    ckpt_subdir = 'checkpoint_' + config.MODEL_NAME
     path = os.path.join(folder_path, ckpt_subdir)
     torch.save({
         'epoch': epoch,

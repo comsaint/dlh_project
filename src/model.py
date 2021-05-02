@@ -1,7 +1,7 @@
 import sys
 import torch.nn as nn
 from torchvision import models
-from config import USE_PRETRAIN, FEATURE_EXTRACT
+from config import USE_PRETRAIN, FEATURE_EXTRACT, DEVICE
 import torch
 
 from caps_net import CapsNet, CapsNetworks
@@ -121,6 +121,7 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """
         input_size = 28
         model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9) 
+        model_ft.load_state_dict(torch.load(f'../models/model_capsnet28_3_16/capsnet28_3_16_6epoch.pth', map_location=torch.device(DEVICE)))
         use_model_loss = True
 
     elif model_name == "capsnet28_3_32":
@@ -137,6 +138,7 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         """
         input_size = 56
         model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9) 
+        
         use_model_loss = True       
 
     elif model_name == "capsnet+densenet":
@@ -149,30 +151,126 @@ def initialize_model(model_name, num_classes=14, use_pretrained=USE_PRETRAIN, fe
         model_ft = models.densenet121(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier.in_features
+        model_ft.classifier = nn.Linear(num_ftrs, num_classes )
+        model_ft.load_state_dict(torch.load(f'../models/densenet_best.bpt', map_location=torch.device(DEVICE)))
+        num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, img_size*img_size*3 )
-        model_ft = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft, image_factor=image_factor)        
-        use_model_loss = True       
+        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
+        model_cp.load_state_dict(torch.load(f'../models/capsnet28_3_16_best.bpt', map_location=torch.device(DEVICE)))
+        model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
+        
+        use_model_loss = True                       
 
     elif model_name == "capsnet+resnext50":
         """ 
         Capsnet + resnext50
         """
         input_size = 224
-        image_factor = 4
+        image_factor = 8
         img_size=int(input_size/(image_factor))
         model_ft = models.resnext50_32x4d(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
-        model_ft.load_state_dict(torch.load('../models/resnext50_10epoch.pth'))
+        model_ft.load_state_dict(torch.load(f'../models/resnext50_best.bpt', map_location=torch.device(DEVICE)))
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, (img_size*img_size*3) )
-        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
-        model_cp.load_state_dict(torch.load('../models/capsnet56_3_32_5epoch.pth'))
+        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
+        model_cp.load_state_dict(torch.load(f'../models/capsnet28_3_16_best.bpt', map_location=torch.device(DEVICE)))
         
         model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
-        use_model_loss = False              
-
+        use_model_loss = True    
+        
+    elif model_name == "densenet+capsnet":
+        """ 
+        Capsnet + densenet
+        """
+        input_size = 224
+        image_factor = 8
+        img_size=int(input_size/image_factor)
+        model_ft = models.densenet121(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.classifier.in_features
+        model_ft.classifier = nn.Linear(num_ftrs, num_classes )
+        #model_ft.load_state_dict(torch.load(f'../models/densenet_best.bpt', map_location=torch.device(DEVICE)))
+        for param in model_ft.parameters():
+            param.requires_grad = True
+        for param in model_ft.features.norm5.parameters():
+            param.requires_grad = True
+        for param in model_ft.features.denseblock4.parameters():
+            param.requires_grad = True
+        num_ftrs = model_ft.classifier.in_features
+        model_ft.classifier.weight.requires_grad = True
+        model_ft.classifier.bias.requires_grad = True
+        model_ft.classifier = nn.Linear(num_ftrs, img_size*img_size*3 )
+        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
+        #model_cp.load_state_dict(torch.load(f'../models/model_capsnet28_3_16/capsnet28_3_16_best.pth', map_location=torch.device(DEVICE)))
+        model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
+        model_ft.load_state_dict(torch.load(f'../models/model_densenet+capsnet/densenet+capsnet_40epoch.pth', map_location=torch.device(DEVICE)))
+        for child in model_ft.children():
+            if str(type(child)) == "<class 'torchvision.models.densenet.DenseNet'>":
+                for param in child.features.norm5.parameters():
+                    param.requires_grad = True
+                for param in child.features.denseblock4.parameters():
+                    param.requires_grad = True
+                for param in child.features.transition3.parameters():
+                    param.requires_grad = True
+                for param in child.features.denseblock3.parameters():
+                    param.requires_grad = True
+                for param in child.features.transition2.parameters():
+                    param.requires_grad = True
+                for param in child.features.denseblock2.parameters():
+                    param.requires_grad = True
+                for param in child.features.transition1.parameters():
+                    param.requires_grad = True
+        for param in model_ft.parameters():
+            param.requires_grad = True
+                        
+        use_model_loss = True   
+        
+    elif model_name == "densenet+capsnet2":
+        """ 
+        Capsnet + densenet
+        """
+        input_size = 224
+        image_factor = 8
+        img_size=int(input_size/image_factor)
+        model_ft = models.densenet121(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.classifier.in_features
+        model_ft.classifier = nn.Linear(num_ftrs, num_classes )
+        model_ft.load_state_dict(torch.load(f'../models/densenet_best.bpt', map_location=torch.device(DEVICE)))
+        model_ft.classifier = nn.Identity( 3 )
+        model_cp = CapsNet(img_size=30, img_channels=1,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
+        #model_cp.load_state_dict(torch.load(f'../models/model_capsnet28_3_16/capsnet28_3_16_best.pth', map_location=torch.device(DEVICE)))
+        model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
+        use_model_loss = False
+    
+    elif model_name == "resnext101+capsnet":
+        """ 
+        Capsnet + resnext101
+        """
+        input_size = 224
+        image_factor = 8
+        img_size=int(input_size/image_factor)
+        model_ft = models.resnext101_32x8d(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
+        model_ft.load_state_dict(torch.load(f'../models/resnext101/resnext101_best.pth', map_location=torch.device(DEVICE)))
+        set_parameter_requires_grad(model_ft, False)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, img_size*img_size*3 )
+        model_ft.fc.weight.requires_grad = True
+        model_ft.fc.bias.requires_grad = True
+        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
+        model_cp.load_state_dict(torch.load(f'../models/model_capsnet28_3_16/capsnet28_3_16_best.pth', map_location=torch.device(DEVICE)))
+        model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
+        #model_ft.load_state_dict(torch.load(f'../models/model_resnext101+capsnet/resnext101+capsnet_best.pth', map_location=torch.device(DEVICE)))
+        #set_parameter_requires_grad(model_ft, False)
+        
+        use_model_loss = True   
+    
     else:
         raise Exception(f"Invalid model name '{model_name}'")
 

@@ -295,22 +295,23 @@ class CapsNet(nn.Module):
         
         if reconstruct:
             reconstruct_err, reconstructions = self.reconstruct_loss(x,y_hat,mean_error)
-            return (margin_err + (reconstruct_err/self.image_factor), reconstructions)
+            return (margin_err + 0.0005 + (reconstruct_err/self.image_factor), reconstructions)
             
-        return margin_err
+        return margin_err + 0.0005
         
     def margin_loss(self, x, y, y_hat, mean_error=True):    
         
         batch = x.size(0)
         
-        y_hat = ((y_hat ** 2).sum(dim=2, keepdim=True) ** 0.5).to(config.DEVICE)
+        y_hat = torch.sqrt((y_hat ** 2).sum(dim=2, keepdim=True)).to(config.DEVICE)
+        zero = Variable(torch.zeros(1)).to(config.DEVICE)
         
         # Margin Loss
-        left  = torch.max(0.9 - y_hat.unsqueeze(-1), Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
-        right = torch.max(y_hat.unsqueeze(-1) - 0.1, Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
+        left  = F.relu(0.9 - y_hat, zero).view(batch, -1)**2
+        right = F.relu(y_hat - 0.1, zero).view(batch, -1)**2
         
         y_bar = y.view(batch,self.num_classes).to(config.DEVICE)
-        print(y_bar.shape)
+        
         margin_error = (y_bar * left + 0.5  * (1. - y_bar) * right).sum(dim=1)
         
         if mean_error:
@@ -352,14 +353,14 @@ class CapsNet(nn.Module):
             reconstruct_error = reconstruct_error.mean()    
         
         return reconstruct_error, reconstructions
-            
+        
     def get_preduction(self, out):
         length = ((out ** 2).sum(dim=2) ** 0.5)
         
-        y_hat = (length.data.max(2)[0]).cpu()
+        y_hat = (length.data.max(2)[0])
         
         return y_hat
-
+        
     def get_probabilities(self, out):
         return ((out ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze().squeeze()
 
@@ -373,22 +374,32 @@ class CapsNetworks(nn.Module):
         
         self.preNet     = preNet
         self.capsNet    = capsNet
+        self.pool       = nn.AvgPool2d(kernel_size=3, stride=1, padding=0)
        
     def forward(self, x):
         
+        hidden = None
         out = x
         if self.preNet:
             out = self.preNet(out)
-        out = out.view(x.size(0), self.capsNet.image_channels, self.capsNet.image_size, self.capsNet.image_size)
+            out = out.view(x.size(0), 1, 32, 32)
+            out = self.pool(out)
+            hidden = out
+        
         out = self.capsNet(out)
         
-        return self.get_probabilities(out) 
+        out = self.get_probabilities(out)
+        out = torch.sigmoid(out)
         
-    def loss(self, x, y_hat, y, mean_error=True, reconstruct=False):     
-        return self.capsNet.loss(x,y_hat, y, mean_error=True, reconstruct=False)
-                
+        return (out,hidden)
+        
+    def loss(self, x, y_hat, y, mean_error=True, reconstruct=False):
+        #if reconstruct:
+        #    return (self.capsNet.loss(x,y_hat, y, mean_error=mean_error, reconstruct=False), None)
+        return self.capsNet.loss(x,y_hat, y, mean_error=mean_error, reconstruct=False)
+
     def get_preduction(self, out):
         return self.capsNet.get_preduction(out)
 
     def get_probabilities(self, out):
-        return ((out ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze().squeeze()
+        return ((out ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze(-1).squeeze(-1)

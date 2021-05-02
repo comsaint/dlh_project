@@ -2,9 +2,9 @@ import math
 import numpy as np
 from sklearn.metrics import roc_curve, auc, roc_auc_score
 from torch.utils.tensorboard import SummaryWriter
-from config import NUM_CLASSES, WRITER_NAME
+from config import NUM_CLASSES, RUNS_DIR, MODEL_NAME
 
-writer = SummaryWriter(WRITER_NAME)
+writer = SummaryWriter(f'{RUNS_DIR}/{MODEL_NAME}')
 
 def conv_output_volume(W, F, S, P):
     """
