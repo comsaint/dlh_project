@@ -1,16 +1,17 @@
 import torch
+from datetime import datetime
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # ##################################
 # Paths - DO NOT EDIT!
-ROOT_PATH='../'
+ROOT_PATH = '../'
 
-SRC_DIR='src/'
-DATA_DIR='data/'
-MODEL_DIR='models/'
+SRC_DIR = 'src/'
+DATA_DIR = 'data/'
+MODEL_DIR = 'models/'
 CHECKPOINT_DIR = 'checkpoints/'
-PROCESSED_DATA_DIR='data/processed'
-RAW_DATA_DIR='data/raw'
+PROCESSED_DATA_DIR = 'data/processed'
+RAW_DATA_DIR = 'data/raw'
 
 INDEX_FILE = 'Data_Entry_2017.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
@@ -18,7 +19,6 @@ TEST_FILE = 'test_list.txt'
 # ##################################
 
 # Hyperparamenters
-WRITER_NAME = 'runs/experiment_fullmodel_resnet50_val010_noextra_noclassweight'  #
 VAL_SIZE = 0.10
 NUM_EPOCHS = 50
 BATCH_SIZE = 32
@@ -38,8 +38,8 @@ FINE_TUNE_START_EPOCH = 5  # allow tuning of all parameters starting from this e
 EARLY_STOP_EPOCHS = 10  # stop training if no improvement compared to last best epoch
 
 # initial learning rates
-GLOBAL_LEARNING_RATE = 1e-5
-LOCAL_LEARNING_RATE = 1e-5
+GLOBAL_LEARNING_RATE = 1e-4
+LOCAL_LEARNING_RATE = 1e-4
 FUSION_LEARNING_RATE = 1e-5
 # TODO: settings for optimizer e.g. patience etc.
 
@@ -61,3 +61,13 @@ if NUM_CLASSES == 14:
     TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',  'Pleural_Thickening', 'Hernia']
 elif NUM_CLASSES == 15:
     TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',  'Pleural_Thickening', 'Hernia', 'No Finding']
+
+# TensorBoard logs
+current_time = datetime.now().strftime("%Y%m%d%H%M%S")  # not used due to multiple workers
+WRITER_NAME = f"runs/experiment_fullmodel_{GLOBAL_MODEL_NAME}_{LOCAL_MODEL_NAME}_{int(VAL_SIZE*100)}_{BATCH_SIZE}_{int(HEATMAP_THRESHOLD*100)}"
+if USE_CLASS_WEIGHT:
+    WRITER_NAME += '_classw'
+if USE_EXTRA_INPUT:
+    WRITER_NAME += '_extra'
+if FINE_TUNE:
+    WRITER_NAME += '_tune'

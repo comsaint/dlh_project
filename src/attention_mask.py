@@ -61,6 +61,7 @@ def attention_gen_patches(ori_image, fm_cuda):
         minw = min(ind[:, 1])
         maxh = max(ind[:, 0])
         maxw = max(ind[:, 1])
+        #print(f"Mask Area %: {(maxh- minh)*(maxw-minw) / (ori_size[0]*ori_size[1]) * 100}")
 
         # to ori image
         image = ori_image[i].detach().cpu().numpy()

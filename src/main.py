@@ -10,6 +10,7 @@ from model import initialize_model, SimpleCLF
 
 
 def main(verbose=config.VERBOSE):
+    print(f"Writer name: {config.WRITER_NAME}")
     # load labels
     df_data, lst_labels = load_data_file()
     print(f"Number of images: {len(df_data)}")
