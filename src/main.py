@@ -24,13 +24,17 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     
     # split data into train, val and test set
     df_train_val, df_test = make_train_test_split(df_data)
+    
     # make sure same patient does not exist in both train and val set
     gss = GroupShuffleSplit(n_splits=1, test_size=config.VAL_SIZE)
+    
     for train_idx, test_idx in gss.split(df_train_val, groups=df_train_val['Patient ID']):
         df_train, df_val = df_train_val[df_train_val['Patient ID'].isin(train_idx)], \
                            df_train_val[df_train_val['Patient ID'].isin(test_idx)]
+    
     df_train.reset_index(inplace=True)
     df_val.reset_index(inplace=True)
+    
     assert set(df_train['Patient ID'].tolist()).isdisjoint(set(df_val['Patient ID'].tolist()))
     
     print(f"Number of train images: {len(df_train)}")
@@ -74,7 +78,7 @@ def main(model_name=config.MODEL_NAME, use_pretrained=config.USE_PRETRAIN, verbo
     # train
     model, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_pth = \
         train_model(model, train_data_loader, val_data_loader, criterion, optimizer, scheduler,
-                    num_epochs=config.NUM_EPOCHS, verbose=verbose)
+                    num_epochs=config.NUM_EPOCHS, verbose=verbose, use_model_loss=use_model_loss)
     
     # load and test on the best model
     model.load_state_dict(torch.load(best_model_pth))
