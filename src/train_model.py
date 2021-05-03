@@ -12,6 +12,8 @@ from utils import writer, make_optimizer_and_scheduler
 from model import set_parameter_requires_grad, initialize_model, get_hook_names, SimpleCLF
 import operator
 from attention_mask import attention_gen_patches
+from dataset import make_data_transform
+import torchvision.transforms.functional as F
 
 sys.path.insert(0, '../src')
 
@@ -28,9 +30,10 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
     print(f"    Mode          : {device}")
 
     # initialize models
-    g_model, g_input_size, _, g_fm_name, g_pool_name, g_fm_size = initialize_model(config.GLOBAL_MODEL_NAME)
-    l_model, l_input_size, _, _, l_pool_name, l_fm_size = initialize_model(config.LOCAL_MODEL_NAME)
+    g_model, g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size = initialize_model(config.GLOBAL_MODEL_NAME)
+    l_model, l_input_size, l_use_model_loss, _, l_pool_name, l_fm_size = initialize_model(config.LOCAL_MODEL_NAME)
     f_feature_size = g_fm_size + l_fm_size
+    
     if config.USE_EXTRA_INPUT:
         f_feature_size += 3
     f_model = SimpleCLF(input_size=f_feature_size).to(device)
@@ -54,6 +57,8 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
     best_model_paths = ['', '', '']
     best_epoch = 1
     cudnn.benchmark = True
+    torch.cuda._lazy_init()
+    
     print(f"Training started")
     for epoch in range(1, num_epochs+1):  # loop over the dataset multiple times
         print(f"\nEpoch {epoch}")
@@ -80,6 +85,8 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         iterations = len(train_loader)
         for i, (inputs, labels) in enumerate(train_loader, 0):
             bz = inputs.shape[0]
+            img_ch = inputs.shape[1]
+            
             # similar to optimizer.zero_grad().
             # https://discuss.pytorch.org/t/model-zero-grad-or-optimizer-zero-grad/28426/6
             g_model.zero_grad()
@@ -89,24 +96,26 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
             # get the inputs: a list of [inputs, labels]
             # `labels` is an 14-dim list of tensors
             inputs, labels = inputs.to(device), labels.to(device)
-
+            
             ####################################
             # Global Branch
             ####################################
-            g_outputs = g_model(inputs).to(device)
+            g_inputs = F.resize(inputs, g_input_size)
+            g_outputs = g_model(g_inputs).to(device)
             ####################################
             # Local branch
             ####################################
             fm_global = g_activation['fm']  # get feature map
             local_patches = attention_gen_patches(inputs, fm_global)
-            l_outputs = l_model(local_patches).to(device)
+            l_inputs = F.resize(local_patches, l_input_size)
+            l_outputs = l_model(l_inputs).to(device)
             ####################################
             # Fusion branch
             ####################################
             pool_g = g_activation['pool'].view(bz, -1)
             pool_l = l_activation['pool'].view(bz, -1)
             #print(f"Global pooling size: {pool_g.shape}")
-            #print(f"Local pooling size: {pool_l.shape}")
+            #print(f"Local pooling size : {pool_l.shape}")
             # TODO: stack extra features
             if config.USE_EXTRA_INPUT:
                 extra = torch.rand(bz, 3)  # FIXME
@@ -115,8 +124,45 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
             f_outputs = f_model(pool_g, pool_l, extra).to(device)
 
             # compute loss
-            g_loss = g_criterion(g_outputs, labels)
-            l_loss = l_criterion(l_outputs, labels)
+            if g_use_model_loss:
+                reconstructions = None
+                g_loss = g_model.loss(g_inputs, g_outputs, labels, mean_error=True, reconstruct=config.RECONSTRUCT)
+                
+                if type(g_loss) == tuple and len(g_loss) == 2:
+                    reconstructions  = g_loss[1]
+                    g_loss = g_loss[0]
+                
+                # Reproduce the decoded image in Run Directory
+                if i == 0 and reconstructions != None: 
+                    folder_path = os.path.join(config.ROOT_PATH, config.OUT_DIR, config.MODEL_NAME)
+                    if not os.path.exists(folder_path):
+                        os.makedirs(folder_path)
+                    save_image(inputs         ,f'{folder_path}/epoch_{epoch}_01_original.png')
+                    save_image(reconstructions,f'{folder_path}/epoch_{epoch}_02_reconstr.png')
+            
+                del reconstructions
+            else:
+                g_loss = g_criterion(g_outputs, labels)
+                
+            if l_use_model_loss:
+                reconstructions = None
+                l_loss = l_model.loss(l_inputs, l_outputs, labels, mean_error=True, reconstruct=config.RECONSTRUCT)
+                
+                if type(l_loss) == tuple and len(l_loss) == 2:
+                    reconstructions  = l_loss[1]
+                    l_loss = l_loss[0]
+                
+                # Reproduce the decoded image in Run Directory
+                if i == 0 and reconstructions != None: 
+                    folder_path = os.path.join(config.ROOT_PATH, config.OUT_DIR, config.MODEL_NAME)
+                    if not os.path.exists(folder_path):
+                        os.makedirs(folder_path)
+                    save_image(inputs         ,f'{folder_path}/epoch_{epoch}_01_original.png')
+                    save_image(reconstructions,f'{folder_path}/epoch_{epoch}_02_reconstr.png')
+            
+                del reconstructions
+            else:
+                l_loss = l_criterion(l_outputs, labels)
             f_loss = f_criterion(f_outputs, labels)
 
             # back-propagate
@@ -138,7 +184,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
                 print(".", end="")
                 if (i+1) % 50 == 0:  # print every 50 mini-batches
                     print(f' Epoch: {epoch:>2} '
-                          f' Batch: {i + 1:>3} / {iterations} '
+                          f' Batch: {i + 1:>4} / {iterations} '
                           f' Global loss: {g_running_loss / (i + 1):>6.4f} '
                           f' Local  loss: {l_running_loss / (i + 1):>6.4f} '
                           f' Fusion loss: {f_running_loss / (i + 1):>6.4f} '
@@ -165,7 +211,10 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         # Validation
         ##################################################################
         print("Validating...")
-        v_loss, v_aucs, y_probs, _, y_true = eval_models([g_model, l_model, f_model], val_loader, criterions)
+        v_loss, v_aucs, y_probs, _, y_true = eval_models([g_model, l_model, f_model], val_loader, criterions, 
+                                g_use_model_loss=g_use_model_loss, l_use_model_loss=l_use_model_loss,
+                                g_input_size=g_input_size,l_input_size=l_input_size
+                                )
 
         val_losses.append(v_loss)
         val_rocs.append(v_aucs)
@@ -217,6 +266,10 @@ def eval_models(models,
                 criterions,
                 g_model_name=config.GLOBAL_MODEL_NAME,
                 l_model_name=config.LOCAL_MODEL_NAME,
+                g_use_model_loss=False,
+                l_use_model_loss=False,
+                g_input_size=config.GLOBAL_IMAGE_SIZE,
+                l_input_size=config.LOCAL_IMAGE_SIZE,
                 threshold=0.50,
                 verbose=config.VERBOSE):
     g_model, l_model, f_model = models
@@ -240,8 +293,14 @@ def eval_models(models,
             y_true.append(labels)
 
             # Global branch
-            g_probs = g_model(inputs.to(config.DEVICE))  # pass through
-            g_loss += float(torch.mean(g_criterion(g_probs, labels)))
+            g_inputs = F.resize(inputs, g_input_size)
+            g_probs = g_model(g_inputs.to(config.DEVICE))  # pass through
+            if g_use_model_loss:
+                g_loss += g_model.loss(g_inputs, g_probs, labels, mean_error=True, reconstruct=False).item()
+                g_probs = g_model.get_preduction(g_probs).to(config.DEVICE) 
+            else:
+                g_loss += float(torch.mean(g_criterion(g_probs, labels)))
+                
             g_predicted = g_probs > threshold
             g_y_prob.append(g_probs)
             g_y_pred.append(g_predicted)
@@ -249,8 +308,14 @@ def eval_models(models,
             # Local branch
             fm_global = g_activation['fm']  # get feature map
             local_patches = attention_gen_patches(inputs, fm_global)
-            l_probs = l_model(local_patches).to(device)
-            l_loss += float(torch.mean(l_criterion(l_probs, labels)))
+            l_inputs = F.resize(local_patches, l_input_size)
+            l_probs = l_model(l_inputs).to(device)
+            if l_use_model_loss:
+                l_loss += l_model.loss(l_inputs, l_probs, labels, mean_error=True, reconstruct=False).item()
+                l_probs = l_model.get_preduction(l_probs).to(config.DEVICE) 
+            else:
+                l_loss += float(torch.mean(l_criterion(l_probs, labels)))
+                
             l_predicted = l_probs > threshold
             l_y_prob.append(l_probs)
             l_y_pred.append(l_predicted)

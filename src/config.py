@@ -12,6 +12,7 @@ MODEL_DIR = 'models/'
 CHECKPOINT_DIR = 'checkpoints/'
 PROCESSED_DATA_DIR = 'data/processed'
 RAW_DATA_DIR = 'data/raw'
+OUT_DIR='out/'
 
 INDEX_FILE = 'Data_Entry_2017.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
@@ -21,17 +22,18 @@ TEST_FILE = 'test_list.txt'
 # Hyperparamenters
 VAL_SIZE = 0.10
 NUM_EPOCHS = 50
-BATCH_SIZE = 32
+BATCH_SIZE = 24
 
 USE_CLASS_WEIGHT = False  # weight class samples by prevalence
 USE_EXTRA_INPUT = False  # TODO: concat age, gender and view position to features
 
+# Uses model sizes unless undefined
 GLOBAL_IMAGE_SIZE = 224
 LOCAL_IMAGE_SIZE = 224
 
 # Models
-GLOBAL_MODEL_NAME = 'resnet50'
-LOCAL_MODEL_NAME = 'resnet50'
+GLOBAL_MODEL_NAME = 'densenet'
+LOCAL_MODEL_NAME = 'capsnet'
 FUSION_MODEL_NAME = 'fusion'  # only for filename
 FINE_TUNE = True  # if True, fine tune a pretrained model. Otherwise train from scratch.
 FINE_TUNE_START_EPOCH = 5  # allow tuning of all parameters starting from this epoch. Ignore if FINE_TUNE==False.
@@ -39,7 +41,7 @@ EARLY_STOP_EPOCHS = 10  # stop training if no improvement compared to last best 
 
 # initial learning rates
 GLOBAL_LEARNING_RATE = 1e-4
-LOCAL_LEARNING_RATE = 1e-4
+LOCAL_LEARNING_RATE  = 1e-3  #Note: For capsnet, initial lr should be 1e-3 or higher
 FUSION_LEARNING_RATE = 1e-5
 # TODO: settings for optimizer e.g. patience etc.
 
@@ -50,6 +52,7 @@ SAMPLING = 0  # samples the input data to reduce data size for quick test. 0 to 
 VERBOSE = True
 MODEL_LOSS = False
 GREY_SCALE = False
+RECONSTRUCT= False
 
 # Utilities
 NUM_WORKERS = 4
