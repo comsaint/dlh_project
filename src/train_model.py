@@ -108,8 +108,6 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5, verbo
             #print(f"Local pooling size: {pool_l.shape}")
             if not params['USE_EXTRA_INPUT']:
                 extra_features = None
-
-            print(extra_features.shape)
             f_outputs = f_model(pool_g, pool_l, extra_features).to(device)
 
             # compute loss
