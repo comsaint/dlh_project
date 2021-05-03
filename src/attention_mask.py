@@ -6,9 +6,11 @@ from skimage.measure import label
 from config import DEVICE, LOCAL_IMAGE_SIZE, GLOBAL_IMAGE_SIZE
 from dataset import make_data_transform
 
-tfx = make_data_transform(GLOBAL_IMAGE_SIZE)
-
+tfx = make_data_transform(GLOBAL_IMAGE_SIZE,
+                          additional_transforms=None)
 preprocess = tfx['test']
+
+# FIXME: infer from model instead of hardcode
 ori_size = (GLOBAL_IMAGE_SIZE, GLOBAL_IMAGE_SIZE)
 crop_size = (LOCAL_IMAGE_SIZE, LOCAL_IMAGE_SIZE)
 

@@ -186,11 +186,9 @@ def initialize_model(params,
 
 class SimpleCLF(nn.Module):
 
-    def __init__(self, input_size, output_size=NUM_CLASSES, use_extra=False):
+    def __init__(self, input_size, output_size=NUM_CLASSES):
         super(SimpleCLF, self).__init__()
         # an affine operation: y = Wx + b
-        if use_extra:
-            input_size += 3
         self.fc = nn.Linear(input_size, output_size)
 
     def forward(self, global_pool, local_pool, extra_features):

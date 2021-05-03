@@ -32,7 +32,7 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5, verbo
     f_feature_size = g_fm_size + l_fm_size
     if params['USE_EXTRA_INPUT']:
         f_feature_size += 3
-    f_model = SimpleCLF(input_size=f_feature_size, use_extra=params['USE_EXTRA_INPUT']).to(device)
+    f_model = SimpleCLF(input_size=f_feature_size).to(device)
 
     g_criterion, l_criterion, f_criterion = criterions
     print(f"    Global Model type    : {type(g_model)}")
@@ -67,7 +67,7 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5, verbo
             set_parameter_requires_grad(l_model, feature_extracting=False)
             # update optimizer and scheduler to tune all parameter groups
             g_optimizer, g_scheduler = make_optimizer_and_scheduler(g_model, lr=params['GLOBAL_LEARNING_RATE'])
-            l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=params['GLOBAL_LEARNING_RATE'])
+            l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=params['LOCAL_LEARNING_RATE'])
             # decrease learning rate
             for param_group in g_optimizer.param_groups:
                 param_group['lr'] /= 5
@@ -78,7 +78,7 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5, verbo
 
         g_running_loss, l_running_loss, f_running_loss = 0.0, 0.0, 0.0
         iterations = len(train_loader)
-        for i, (inputs, labels) in enumerate(train_loader, 0):
+        for i, (inputs, labels, extra_features) in enumerate(train_loader, 0):
             bz = inputs.shape[0]
             # similar to optimizer.zero_grad().
             # https://discuss.pytorch.org/t/model-zero-grad-or-optimizer-zero-grad/28426/6
@@ -86,9 +86,8 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5, verbo
             l_model.zero_grad()
             f_model.zero_grad()
 
-            # get the inputs: a list of [inputs, labels]
-            # `labels` is an 14-dim list of tensors
-            inputs, labels = inputs.to(device), labels.to(device)
+            # get the inputs
+            inputs, labels, extra_features = inputs.to(device), labels.to(device), extra_features.to(config.DEVICE)
 
             ####################################
             # Global Branch
@@ -107,12 +106,11 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5, verbo
             pool_l = l_activation['pool'].view(bz, -1)
             #print(f"Global pooling size: {pool_g.shape}")
             #print(f"Local pooling size: {pool_l.shape}")
-            # TODO: stack extra features
-            if params['USE_EXTRA_INPUT']:
-                extra = torch.rand(bz, 3)  # FIXME
-            else:
-                extra = None
-            f_outputs = f_model(pool_g, pool_l, extra).to(device)
+            if not params['USE_EXTRA_INPUT']:
+                extra_features = None
+
+            print(extra_features.shape)
+            f_outputs = f_model(pool_g, pool_l, extra_features).to(device)
 
             # compute loss
             g_loss = g_criterion(g_outputs, labels)
@@ -232,9 +230,10 @@ def eval_models(params,
         l_model.eval()
         f_model.eval()
         cudnn.benchmark = True
-        for i, (inputs, labels) in enumerate(loader):
+        for i, (inputs, labels, extra_features) in enumerate(loader):
             bz = inputs.shape[0]
             labels = labels.to(config.DEVICE)  # true labels
+            extra_features = extra_features.to(config.DEVICE)
             y_true.append(labels)
 
             # Global branch
@@ -256,12 +255,10 @@ def eval_models(params,
             # Fusion branch
             pool_g = g_activation['pool'].view(bz, -1)
             pool_l = l_activation['pool'].view(bz, -1)
-            # TODO: stack extra features
-            if params['USE_EXTRA_INPUT']:
-                extra = torch.zeros(bz, 3)
-            else:
-                extra = None
-            f_probs = f_model(pool_g, pool_l, extra).to(device)
+
+            if not params['USE_EXTRA_INPUT']:
+                extra_features = None
+            f_probs = f_model(pool_g, pool_l, extra_features).to(device)
             f_loss += float(torch.mean(f_criterion(f_probs, labels)))
             f_predicted = f_probs > threshold
             f_y_prob.append(f_probs)
