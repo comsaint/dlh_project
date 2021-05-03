@@ -61,6 +61,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         g_model.train()
         l_model.train()
         f_model.train()
+
         # tune cls layers for a few epochs, then tune the whole model
         if config.FINE_TUNE and epoch == config.FINE_TUNE_START_EPOCH:
             set_parameter_requires_grad(g_model, feature_extracting=False)
@@ -147,7 +148,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         print(f"\nTraining loss: {f_running_loss / len(train_loader):>4f}")
         train_losses.append(f_running_loss / len(train_loader))  # keep trace of train loss in each epoch
 
-        # # write training loss to TensorBoard
+        # write training loss to TensorBoard
         writer.add_scalar("Loss/g_train", g_running_loss / len(train_loader), epoch)
         writer.add_scalar("Loss/l_train", l_running_loss / len(train_loader), epoch)
         writer.add_scalar("Loss/f_train", f_running_loss / len(train_loader), epoch)
@@ -186,7 +187,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         writer.add_pr_curve('PR/l_val', y_true, y_probs[1], epoch)
 
         writer.add_scalar("Loss/f_val", v_loss[2], epoch)
-        writer.add_scalar("ROCAUC/f_val", v_aucs[1], epoch)
+        writer.add_scalar("ROCAUC/f_val", v_aucs[2], epoch)
         writer.add_pr_curve('PR/f_val', y_true, y_probs[2], epoch)
 
         # step the learning rate

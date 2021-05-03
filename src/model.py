@@ -9,14 +9,15 @@ sys.path.insert(0, '../src')
 
 
 def get_hook_names(model_name):
-    if model_name in ['resnet50', 'resnext50', 'resnext101']:
+    if model_name == 'resnet18':
+        fm_name = "layer4.1.bn2"
+        pool_name = "avgpool"
+    elif model_name in ['resnet50', 'resnext50', 'resnext101']:
         fm_name = "layer4.2.relu"  # TODO: or layer4.2.conv3 ?
         pool_name = "avgpool"
     elif model_name == 'densenet':
         fm_name = "features.norm5"
         pool_name = "features.norm5"
-    elif model_name == 'fc':
-        fm_name, pool_name = '', ''
     else:
         raise NotImplementedError(f"Feature map and pooling hooks not implemented for model '{model_name}'.")
     return fm_name, pool_name
@@ -32,7 +33,7 @@ def initialize_model(model_name,
                      num_classes=NUM_CLASSES,
                      fine_tune=FINE_TUNE):
     use_model_loss = False
-    if model_name == "resnet":
+    if model_name == "resnet18":
         """ 
         Resnet18
         """
@@ -46,6 +47,7 @@ def initialize_model(model_name,
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
         fm_name, pool_name = get_hook_names(model_name)
+        fm_size = 2048 * 1 * 1
 
     elif model_name == "densenet":
         """ 
@@ -189,7 +191,7 @@ class SimpleCLF(nn.Module):
         # an affine operation: y = Wx + b
         if USE_EXTRA_INPUT:
             input_size += 3
-        self.fc = nn.Linear(input_size, NUM_CLASSES)
+        self.fc = nn.Linear(input_size, output_size)
 
     def forward(self, global_pool, local_pool, extra_features):
         if extra_features is None:
