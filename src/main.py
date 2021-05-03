@@ -7,9 +7,10 @@ import config
 from dataset import make_data_transform, load_data
 from data_processing import load_data_file, make_train_test_split, make_train_val_split
 from model import initialize_model, SimpleCLF
+from config import params as p
 
 
-def main(verbose=config.VERBOSE):
+def main(params=p, verbose=config.VERBOSE):
     print(f"Writer name: {config.WRITER_NAME}")
     # load labels
     df_data, lst_labels = load_data_file()
@@ -22,7 +23,7 @@ def main(verbose=config.VERBOSE):
     # split data into train+val and test set
     df_train_val, df_test = make_train_test_split(df_data)
     # split train+val set into train and val set
-    df_train, df_val = make_train_val_split(df_train_val)
+    df_train, df_val = make_train_val_split(params, df_train_val)
     # make sure same patient does not exist in both train and val set
     assert set(df_train['Patient ID'].tolist()).isdisjoint(set(df_val['Patient ID'].tolist())), \
         "Same patient exist in train and validation set!"
@@ -50,14 +51,14 @@ def main(verbose=config.VERBOSE):
 
     # make data loaders
     tfx = make_data_transform(config.GLOBAL_IMAGE_SIZE)
-    train_data_loader = load_data(df_train, transform=tfx['train'], shuffle=True)
-    val_data_loader = load_data(df_val, transform=tfx['test'], shuffle=False)
-    test_data_loader = load_data(df_test, transform=tfx['test'], shuffle=False)
+    train_data_loader = load_data(params, df_train, transform=tfx['train'], shuffle=True)
+    val_data_loader = load_data(params, df_val, transform=tfx['test'], shuffle=False)
+    test_data_loader = load_data(params, df_test, transform=tfx['test'], shuffle=False)
 
     # Criterion
     # Sigmoid + BCE loss https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
     # note we do the sigmoid here instead of inside model for numerical stability
-    if config.USE_CLASS_WEIGHT:
+    if params['USE_CLASS_WEIGHT']:
         class_weight = 1 / np.mean(df_data[lst_labels]) - 1  # ratio of #pos:#neg samples
         class_weight = torch.FloatTensor(class_weight.tolist()).to(config.DEVICE)
         g_criterion = nn.BCEWithLogitsLoss(pos_weight=class_weight)
@@ -75,6 +76,7 @@ def main(verbose=config.VERBOSE):
     # train
     models, t_losses, v_losses, v_best_loss, v_rocs, roc_at_best_v_loss, best_model_paths = \
         train_model(
+            params,
             train_loader=train_data_loader,
             val_loader=val_data_loader,
             criterions=criterions
@@ -85,9 +87,9 @@ def main(verbose=config.VERBOSE):
     # Test on the best models
     ##############################################
     g_best_path, l_best_path, f_best_path = best_model_paths
-    g_model, g_input_size, _, g_fm_name, g_pool_name, g_fm_size = initialize_model(config.GLOBAL_MODEL_NAME)
-    l_model, l_input_size, _, _, l_pool_name, l_fm_size = initialize_model(config.LOCAL_MODEL_NAME)
-    if config.USE_EXTRA_INPUT:
+    g_model, g_input_size, _, g_fm_name, g_pool_name, g_fm_size = initialize_model(params, params['GLOBAL_MODEL_NAME'])
+    l_model, l_input_size, _, _, l_pool_name, l_fm_size = initialize_model(params, params['LOCAL_MODEL_NAME'])
+    if params['USE_EXTRA_INPUT']:
         s = g_fm_size + l_fm_size + 3
     else:
         s = g_fm_size + l_fm_size
@@ -98,7 +100,7 @@ def main(verbose=config.VERBOSE):
     f_model.load_state_dict(torch.load(f_best_path))
     models = [g_model, l_model, f_model]
 
-    test_loss, test_auc, _, _, _ = eval_models(models, test_data_loader, criterions)
+    test_loss, test_auc, _, _, _ = eval_models(params, models, test_data_loader, criterions)
 
     print(f"Test loss: {test_loss[2]}; Test ROC: {test_auc[2]}")
 
@@ -111,4 +113,4 @@ def main(verbose=config.VERBOSE):
 
 
 if __name__ == "__main__":
-    main(verbose=config.VERBOSE)
+    main()

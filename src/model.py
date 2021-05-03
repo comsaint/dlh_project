@@ -1,7 +1,7 @@
 import sys
 import torch.nn as nn
 from torchvision import models
-from config import FINE_TUNE, NUM_CLASSES, DEVICE, USE_EXTRA_INPUT
+from config import NUM_CLASSES, DEVICE
 import torch
 from caps_net import CapsNet, CapsNetworks
 
@@ -29,15 +29,15 @@ def set_parameter_requires_grad(model, feature_extracting):
             param.requires_grad = False
 
 
-def initialize_model(model_name,
-                     num_classes=NUM_CLASSES,
-                     fine_tune=FINE_TUNE):
+def initialize_model(params,
+                     model_name,
+                     num_classes=NUM_CLASSES):
     use_model_loss = False
     if model_name == "resnet18":
         """ 
         Resnet18
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnet18(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -53,7 +53,7 @@ def initialize_model(model_name,
         """ 
         Densenet
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.densenet121(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -69,7 +69,7 @@ def initialize_model(model_name,
         """
         ResNeXt-50
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnext50_32x4d(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -84,7 +84,7 @@ def initialize_model(model_name,
         """
         ResNet-50
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnet50(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -99,7 +99,7 @@ def initialize_model(model_name,
         """
         ResNeXt-101-32x8d
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnext101_32x8d(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -143,7 +143,7 @@ def initialize_model(model_name,
         image_factor = 8
         img_size=int(input_size/image_factor)
 
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.densenet121(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -159,8 +159,8 @@ def initialize_model(model_name,
         """
         input_size = 224
         image_factor = 4
-        img_size=int(input_size/(image_factor))
-        if fine_tune:  # Tune cls layer, then all
+        img_size = int(input_size/image_factor)
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnext50_32x4d(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -186,10 +186,10 @@ def initialize_model(model_name,
 
 class SimpleCLF(nn.Module):
 
-    def __init__(self, input_size, output_size=NUM_CLASSES):
+    def __init__(self, input_size, output_size=NUM_CLASSES, use_extra=False):
         super(SimpleCLF, self).__init__()
         # an affine operation: y = Wx + b
-        if USE_EXTRA_INPUT:
+        if use_extra:
             input_size += 3
         self.fc = nn.Linear(input_size, output_size)
 
@@ -198,5 +198,6 @@ class SimpleCLF(nn.Module):
             fusion = torch.cat((global_pool, local_pool), 1)
         else:
             fusion = torch.cat((global_pool, local_pool, extra_features), 1)
+        # TODO: try different architectures
         x = self.fc(fusion)
         return x

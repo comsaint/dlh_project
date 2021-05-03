@@ -22,18 +22,17 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 device = config.DEVICE
 
 
-def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOCHS,
-                save_freq=5, verbose=config.VERBOSE):
+def train_model(params, train_loader, val_loader, criterions, save_freq=5, verbose=config.VERBOSE):
     start_time = time.time()
     print(f"    Mode          : {device}")
 
     # initialize models
-    g_model, g_input_size, _, g_fm_name, g_pool_name, g_fm_size = initialize_model(config.GLOBAL_MODEL_NAME)
-    l_model, l_input_size, _, _, l_pool_name, l_fm_size = initialize_model(config.LOCAL_MODEL_NAME)
+    g_model, g_input_size, _, g_fm_name, g_pool_name, g_fm_size = initialize_model(params, params['GLOBAL_MODEL_NAME'])
+    l_model, l_input_size, _, _, l_pool_name, l_fm_size = initialize_model(params, params['LOCAL_MODEL_NAME'])
     f_feature_size = g_fm_size + l_fm_size
-    if config.USE_EXTRA_INPUT:
+    if params['USE_EXTRA_INPUT']:
         f_feature_size += 3
-    f_model = SimpleCLF(input_size=f_feature_size).to(device)
+    f_model = SimpleCLF(input_size=f_feature_size, use_extra=params['USE_EXTRA_INPUT']).to(device)
 
     g_criterion, l_criterion, f_criterion = criterions
     print(f"    Global Model type    : {type(g_model)}")
@@ -41,13 +40,13 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
     print(f"    Fusion Model type    : {type(f_model)}")
 
     # prepare hooks for branches
-    g_activation = get_hooks(g_model, config.GLOBAL_MODEL_NAME)
-    l_activation = get_hooks(l_model, config.LOCAL_MODEL_NAME)
+    g_activation = get_hooks(g_model, params['GLOBAL_MODEL_NAME'])
+    l_activation = get_hooks(l_model, params['LOCAL_MODEL_NAME'])
 
     # initialize optimizer and scheduler
-    g_optimizer, g_scheduler = make_optimizer_and_scheduler(g_model, lr=config.GLOBAL_LEARNING_RATE)
-    l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=config.LOCAL_LEARNING_RATE)
-    f_optimizer, f_scheduler = make_optimizer_and_scheduler(f_model, lr=config.FUSION_LEARNING_RATE, patience=5)
+    g_optimizer, g_scheduler = make_optimizer_and_scheduler(g_model, lr=params['GLOBAL_LEARNING_RATE'])
+    l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=params['LOCAL_LEARNING_RATE'])
+    f_optimizer, f_scheduler = make_optimizer_and_scheduler(f_model, lr=params['FUSION_LEARNING_RATE'], patience=5)
 
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
@@ -55,7 +54,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
     best_epoch = 1
     cudnn.benchmark = True
     print(f"Training started")
-    for epoch in range(1, num_epochs+1):  # loop over the dataset multiple times
+    for epoch in range(1, params['NUM_EPOCHS']+1):  # loop over the dataset multiple times
         print(f"\nEpoch {epoch}")
         epoch_start_time = time.time()
         g_model.train()
@@ -63,12 +62,12 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         f_model.train()
 
         # tune cls layers for a few epochs, then tune the whole model
-        if config.FINE_TUNE and epoch == config.FINE_TUNE_START_EPOCH:
+        if params['FINE_TUNE'] and epoch == params['FINE_TUNE_START_EPOCH']:
             set_parameter_requires_grad(g_model, feature_extracting=False)
             set_parameter_requires_grad(l_model, feature_extracting=False)
             # update optimizer and scheduler to tune all parameter groups
-            g_optimizer, g_scheduler = make_optimizer_and_scheduler(g_model, lr=config.GLOBAL_LEARNING_RATE)
-            l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=config.GLOBAL_LEARNING_RATE)
+            g_optimizer, g_scheduler = make_optimizer_and_scheduler(g_model, lr=params['GLOBAL_LEARNING_RATE'])
+            l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=params['GLOBAL_LEARNING_RATE'])
             # decrease learning rate
             for param_group in g_optimizer.param_groups:
                 param_group['lr'] /= 5
@@ -99,7 +98,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
             # Local branch
             ####################################
             fm_global = g_activation['fm']  # get feature map
-            local_patches = attention_gen_patches(inputs, fm_global)
+            local_patches = attention_gen_patches(inputs, fm_global, params['HEATMAP_THRESHOLD'])
             l_outputs = l_model(local_patches).to(device)
             ####################################
             # Fusion branch
@@ -109,7 +108,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
             #print(f"Global pooling size: {pool_g.shape}")
             #print(f"Local pooling size: {pool_l.shape}")
             # TODO: stack extra features
-            if config.USE_EXTRA_INPUT:
+            if params['USE_EXTRA_INPUT']:
                 extra = torch.rand(bz, 3)  # FIXME
             else:
                 extra = None
@@ -156,7 +155,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         print(f'Time elapsed: {(time.time()-start_time)/60.0:.1f} minutes.')
 
         if epoch % save_freq == 0:  # save model and checkpoint for inference or training
-            save_models([g_model, l_model, f_model], epoch)
+            save_models(params, [g_model, l_model, f_model], epoch)
             save_checkpoints([g_model, l_model, f_model],
                              epoch,
                              [g_optimizer, l_optimizer, f_optimizer],
@@ -166,7 +165,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         # Validation
         ##################################################################
         print("Validating...")
-        v_loss, v_aucs, y_probs, _, y_true = eval_models([g_model, l_model, f_model], val_loader, criterions)
+        v_loss, v_aucs, y_probs, _, y_true = eval_models(params, [g_model, l_model, f_model], val_loader, criterions)
 
         val_losses.append(v_loss)
         val_rocs.append(v_aucs)
@@ -176,7 +175,7 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
             best_epoch = epoch
             best_val_loss = v_loss[2]
             roc_at_best_val_loss = v_aucs[2]
-            best_model_paths = save_models([g_model, l_model, f_model], epoch, best=True)
+            best_model_paths = save_models(params, [g_model, l_model, f_model], epoch, best=True)
 
         writer.add_scalar("Loss/g_val", v_loss[0], epoch)
         writer.add_scalar("ROCAUC/g_val", v_aucs[0], epoch)
@@ -202,28 +201,26 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         print(f'Time elapsed: {(time.time() - start_time) / 60.0:.1f} minutes.')
         print(f'Average time per epoch: {(time.time() - start_time) / 60.0/ epoch:.1f} minutes.')
         # early stopping
-        if epoch - best_epoch > config.EARLY_STOP_EPOCHS:
-            print(f"No improvement for {config.EARLY_STOP_EPOCHS} epochs. Stop training.")
+        if epoch - best_epoch > params['EARLY_STOP_EPOCHS']:
+            print(f"No improvement for {params['EARLY_STOP_EPOCHS']} epochs. Stop training.")
             break
 
     print(f'Finished Training. Total time: {(time.time() - start_time) / 60} minutes.')
     print(f"Best (fusion branch) ROC on validation set: {best_val_loss:3f}, achieved on epoch #{best_epoch}")
 
-    return [g_model, l_model, f_model], \
-           train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_paths
+    return [g_model, l_model, f_model], train_losses, val_losses, best_val_loss, val_rocs, roc_at_best_val_loss, best_model_paths
 
 
-def eval_models(models,
+def eval_models(params,
+                models,
                 loader,
                 criterions,
-                g_model_name=config.GLOBAL_MODEL_NAME,
-                l_model_name=config.LOCAL_MODEL_NAME,
                 threshold=0.50,
                 verbose=config.VERBOSE):
     g_model, l_model, f_model = models
     g_criterion, l_criterion, f_criterion = criterions
-    g_activation = get_hooks(g_model, g_model_name)
-    l_activation = get_hooks(l_model, l_model_name)
+    g_activation = get_hooks(g_model, params['GLOBAL_MODEL_NAME'])
+    l_activation = get_hooks(l_model, params['LOCAL_MODEL_NAME'])
 
     y_true = []
     g_y_prob, g_y_pred = [], []
@@ -249,7 +246,7 @@ def eval_models(models,
 
             # Local branch
             fm_global = g_activation['fm']  # get feature map
-            local_patches = attention_gen_patches(inputs, fm_global)
+            local_patches = attention_gen_patches(inputs, fm_global, params['HEATMAP_THRESHOLD'])
             l_probs = l_model(local_patches).to(device)
             l_loss += float(torch.mean(l_criterion(l_probs, labels)))
             l_predicted = l_probs > threshold
@@ -260,7 +257,7 @@ def eval_models(models,
             pool_g = g_activation['pool'].view(bz, -1)
             pool_l = l_activation['pool'].view(bz, -1)
             # TODO: stack extra features
-            if config.USE_EXTRA_INPUT:
+            if params['USE_EXTRA_INPUT']:
                 extra = torch.zeros(bz, 3)
             else:
                 extra = None
@@ -292,7 +289,7 @@ def eval_models(models,
         print("'"*20)
         print("Global branch")
         print("'" * 20)
-        print(f"Disease:{'':<22}ROCAUC")
+        print(f"Disease:{'':<22}AUROC")
         for i, lb in enumerate(config.TEXT_LABELS):
             print(f"{lb:<30}: {g_roc_aucs[i]:.4f}")
         print(f"\nROCAUC (Macro): {g_macro_roc_auc}")
@@ -300,18 +297,18 @@ def eval_models(models,
         print("'" * 20)
         print("Local branch")
         print("'" * 20)
-        print(f"Disease:{'':<22}ROCAUC")
+        print(f"Disease:{'':<22}AUROC")
         for i, lb in enumerate(config.TEXT_LABELS):
             print(f"{lb:<30}: {l_roc_aucs[i]:.4f}")
-        print(f"\nROCAUC (Macro): {l_macro_roc_auc}")
+        print(f"\nAUROC (Macro): {l_macro_roc_auc}")
 
         print("'" * 20)
         print("Fusion branch")
         print("'" * 20)
-        print(f"Disease:{'':<22}ROCAUC")
+        print(f"Disease:{'':<22}AUROC")
         for i, lb in enumerate(config.TEXT_LABELS):
             print(f"{lb:<30}: {f_roc_aucs[i]:.4f}")
-        print(f"\nROCAUC (Macro): {f_macro_roc_auc}")
+        print(f"\nAUROC (Macro): {f_macro_roc_auc}")
 
     return [g_loss, l_loss, f_loss], \
            [g_macro_roc_auc, l_macro_roc_auc, f_macro_roc_auc], \
@@ -320,7 +317,7 @@ def eval_models(models,
            y_true
 
 
-def save_models(models, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False, verbose=True):
+def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
     g_model, l_model, f_model = models
 
     model_subdir = 'model_' + config.WRITER_NAME.split('/')[-1]
@@ -328,13 +325,13 @@ def save_models(models, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     if best:
-        g_path = os.path.join(folder_path, f'{config.GLOBAL_MODEL_NAME}_best.pth')
-        l_path = os.path.join(folder_path, f'{config.LOCAL_MODEL_NAME}_best.pth')
-        f_path = os.path.join(folder_path, f'{config.FUSION_MODEL_NAME}_best.pth')
+        g_path = os.path.join(folder_path, f'{params["GLOBAL_MODEL_NAME"]}_best.pth')
+        l_path = os.path.join(folder_path, f'{params["LOCAL_MODEL_NAME"]}_best.pth')
+        f_path = os.path.join(folder_path, f'{params["FUSION_MODEL_NAME"]}_best.pth')
     else:
-        g_path = os.path.join(folder_path, f'{config.GLOBAL_MODEL_NAME}_{num_epochs}epoch.pth')
-        l_path = os.path.join(folder_path, f'{config.LOCAL_MODEL_NAME}_{num_epochs}epoch.pth')
-        f_path = os.path.join(folder_path, f'{config.FUSION_MODEL_NAME}_{num_epochs}epoch.pth')
+        g_path = os.path.join(folder_path, f'{params["GLOBAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
+        l_path = os.path.join(folder_path, f'{params["LOCAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
+        f_path = os.path.join(folder_path, f'{params["FUSION_MODEL_NAME"]}_{num_epochs}epoch.pth')
 
     torch.save(g_model.state_dict(), g_path)
     torch.save(l_model.state_dict(), l_path)
@@ -388,8 +385,8 @@ def get_hooks(model, model_name):
     activation = dict()
 
     def get_activation(name, act):
-        def hook(model, input, output):
-            activation[name] = output.detach()
+        def hook(model, inp, output):
+            act[name] = output.detach()
         return hook
 
     fm_name, pool_name = get_hook_names(model_name)

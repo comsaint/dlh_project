@@ -69,14 +69,14 @@ class NihDataset(Dataset):
         return image, target
 
 
-def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=config.GREY_SCALE):
+def load_data(params, dataframe, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=config.GREY_SCALE):
     """
     Data Loader with batch loading and transform.
     """
     image_data = NihDataset(dataframe, transform=transform, greyscale=greyscale)
     pin = config.DEVICE == 'cpu'
     loader = torch.utils.data.DataLoader(image_data,
-                                         batch_size=batch_size,
+                                         batch_size=params['BATCH_SIZE'],
                                          shuffle=shuffle,
                                          num_workers=num_workers,
                                          pin_memory=pin)
