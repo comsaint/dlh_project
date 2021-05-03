@@ -86,4 +86,7 @@ if params['USE_EXTRA_INPUT']:
     WRITER_NAME += '_extra'
 if params['FINE_TUNE']:
     WRITER_NAME += '_tune'
+if params['AUGMENTATIONS']:
+    _s = '-'.join(params['AUGMENTATIONS'])
+    WRITER_NAME += '_' + _s
 WRITER_NAME += f"_trial{trial}"
