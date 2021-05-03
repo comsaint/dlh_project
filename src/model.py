@@ -24,6 +24,24 @@ def get_hook_names(model_name):
         raise NotImplementedError(f"Feature map and pooling hooks not implemented for model '{model_name}'.")
     return fm_name, pool_name
 
+def unfreeze_last_frozen_layer(model):
+    last_name  = None
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            break
+        else:
+            last_name  = name
+    if last_name == None:
+        return
+    if last_name.count('.') == 1:
+        layer = last_name.split('.')[0]
+    elif last_name.count('.') > 1:
+        layer = last_name.split('.')[0]+'.'+last_name.split('.')[1]
+    else:
+        return
+    for name, param in model.named_parameters():
+        if name.startswith(layer):
+            param.requires_grad = True
 
 def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:

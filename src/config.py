@@ -38,6 +38,7 @@ FUSION_MODEL_NAME = 'fusion'  # only for filename
 FINE_TUNE = True  # if True, fine tune a pretrained model. Otherwise train from scratch.
 FINE_TUNE_START_EPOCH = 5  # allow tuning of all parameters starting from this epoch. Ignore if FINE_TUNE==False.
 EARLY_STOP_EPOCHS = 10  # stop training if no improvement compared to last best epoch
+FINE_TUNE_STEP_WISE=True
 
 # initial learning rates
 GLOBAL_LEARNING_RATE = 1e-4

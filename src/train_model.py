@@ -9,7 +9,7 @@ import torch
 import torch.backends.cudnn as cudnn
 from utils import calculate_metric
 from utils import writer, make_optimizer_and_scheduler
-from model import set_parameter_requires_grad, initialize_model, get_hook_names, SimpleCLF
+from model import set_parameter_requires_grad, initialize_model, get_hook_names, SimpleCLF, unfreeze_last_frozen_layer
 import operator
 from attention_mask import attention_gen_patches
 from dataset import make_data_transform
@@ -67,20 +67,30 @@ def train_model(train_loader, val_loader, criterions, num_epochs=config.NUM_EPOC
         l_model.train()
         f_model.train()
         # tune cls layers for a few epochs, then tune the whole model
-        if config.FINE_TUNE and epoch == config.FINE_TUNE_START_EPOCH:
-            set_parameter_requires_grad(g_model, feature_extracting=False)
-            set_parameter_requires_grad(l_model, feature_extracting=False)
-            # update optimizer and scheduler to tune all parameter groups
-            g_optimizer, g_scheduler = make_optimizer_and_scheduler(g_model, lr=config.GLOBAL_LEARNING_RATE)
-            l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=config.GLOBAL_LEARNING_RATE)
-            # decrease learning rate
-            for param_group in g_optimizer.param_groups:
-                param_group['lr'] /= 5
-            for param_group in l_optimizer.param_groups:
-                param_group['lr'] /= 5
+        if config.FINE_TUNE and epoch >= config.FINE_TUNE_START_EPOCH:
             if verbose:
                 print("Starting fine-tuning all model parameters")
-
+            
+            # After FINE_TUNE_START_EPOCH, unfreeze last frozen layer(s) every epoch
+            if config.FINE_TUNE_STEP_WISE:
+                unfreeze_last_frozen_layer(g_model)
+                unfreeze_last_frozen_layer(l_model)
+            else:
+                # FixMe: Doesnt seem to work
+                set_parameter_requires_grad(g_model, feature_extracting=False)
+                set_parameter_requires_grad(l_model, feature_extracting=False)
+            
+            # After FINE_TUNE_START_EPOCH, Every 5 epochs fine tune
+            if epoch % config.FINE_TUNE_START_EPOCH == 0:
+                # update optimizer and scheduler to tune all parameter groups
+                g_optimizer, g_scheduler = make_optimizer_and_scheduler(g_model, lr=config.GLOBAL_LEARNING_RATE)
+                l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=config.LOCAL_LEARNING_RATE)
+                # decrease learning rate
+                for param_group in g_optimizer.param_groups:
+                    param_group['lr'] /= 5
+                for param_group in l_optimizer.param_groups:
+                    param_group['lr'] /= 5
+            
         g_running_loss, l_running_loss, f_running_loss = 0.0, 0.0, 0.0
         iterations = len(train_loader)
         for i, (inputs, labels) in enumerate(train_loader, 0):
