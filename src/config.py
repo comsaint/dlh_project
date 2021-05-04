@@ -1,14 +1,15 @@
 import torch
 from ray import tune
+import os
 
-trial = 1
+trial = 3
 HYPERSEARCH = False
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # ##################################
 # Paths - DO NOT EDIT!
-ROOT_PATH = '/media/long/TeamGroup SSD 1TB/dlh_project'  # FIXME
+ROOT_PATH = os.path.join(os.path.dirname(__file__), '..')
 
 SRC_DIR = 'src/'
 DATA_DIR = 'data/'
@@ -16,11 +17,13 @@ MODEL_DIR = 'models/'
 CHECKPOINT_DIR = 'checkpoints/'
 PROCESSED_DATA_DIR = 'data/processed'
 RAW_DATA_DIR = 'data/raw'
+OUT_DIR='out/'
 
 INDEX_FILE = 'Data_Entry_2017_v2020.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
 
+# Uses model sizes unless undefined
 GLOBAL_IMAGE_SIZE = 224
 LOCAL_IMAGE_SIZE = 224
 
@@ -29,6 +32,7 @@ SAMPLING = 0  # samples the input data to reduce data size for quick test. 0 to 
 VERBOSE = True
 MODEL_LOSS = False
 GREY_SCALE = False
+RECONSTRUCT = False
 
 # Utilities
 NUM_WORKERS = 1
@@ -41,6 +45,7 @@ if NUM_CLASSES == 14:
 elif NUM_CLASSES == 15:
     TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',  'Pleural_Thickening', 'Hernia', 'No Finding']
 
+# search space of hyper-parameters
 params_hypersearch = {
             "NUM_EPOCHS": 100,
             "BATCH_SIZE": 32,
@@ -53,17 +58,20 @@ params_hypersearch = {
             "LOCAL_LEARNING_RATE": tune.loguniform(1e-6, 1e-3),
             "FUSION_LEARNING_RATE": tune.loguniform(1e-6, 1e-3),
             "USE_CLASS_WEIGHT": tune.choice([True, False]),
-            "USE_EXTRA_INPUT": False,  # TODO
+            "USE_EXTRA_INPUT": True,
             "GLOBAL_MODEL_NAME": tune.choice(['densenet', 'resnet50', 'resnext50', 'resnext101']),
             "LOCAL_MODEL_NAME": tune.choice(['densenet', 'resnet50', 'resnext50', 'resnext101']),
-            "FUSION_MODEL_NAME": 'fusion'
+            "FUSION_MODEL_NAME": 'fusion',
+            "FINE_TUNE_STEP_WISE": tune.choice([True, False]),
 }
 
+# config of single pass
 params = {
     "NUM_EPOCHS": 100,
     "BATCH_SIZE": 32,
     "FINE_TUNE": True,
-    "FINE_TUNE_START_EPOCH": 5,
+    "FINE_TUNE_START_EPOCH": 2,
+    "FINE_TUNE_STEP_WISE": True,
     "EARLY_STOP_EPOCHS": 10,
     "VAL_SIZE": 0.05,
     "HEATMAP_THRESHOLD":  0.7,
@@ -72,8 +80,8 @@ params = {
     "FUSION_LEARNING_RATE": 1e-4,
     "USE_CLASS_WEIGHT": True,
     "USE_EXTRA_INPUT": True,
-    "GLOBAL_MODEL_NAME": 'densenet',
-    "LOCAL_MODEL_NAME": 'densenet',
+    "GLOBAL_MODEL_NAME": 'resnet18',
+    "LOCAL_MODEL_NAME": 'resnet18',
     "FUSION_MODEL_NAME": 'fusion',
     "AUGMENTATIONS": ['rot', 'hflip']  # see dataset.make_data_transform() for options
 }

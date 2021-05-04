@@ -195,7 +195,14 @@ class CapsConvLayer(nn.Module):
     
         return out
         
+class CapsNetClasifier(nn.Module):
+    def __init__(self):
+        super(CapsNetClasifier, self).__init__()        
         
+    def forward(self, x):
+        
+        return ((x ** 2).sum(dim=2, keepdim=True) ** 0.5).squeeze().squeeze()
+            
 class CapsNet(nn.Module):
     def __init__(self,
                  img_size          = 28  , # 28
@@ -207,7 +214,8 @@ class CapsNet(nn.Module):
                  out_channels      = 16  , # 16
                  conv_kernel_size  = 9   ,
                  conv_unit_model   = None,
-                 image_factor      = 1
+                 image_factor      = 1   ,
+                 use_model_loss    = True
                  ):
         
         super(CapsNet, self).__init__()
@@ -219,7 +227,8 @@ class CapsNet(nn.Module):
         self.conv_kernel_size  = conv_kernel_size
         self.image_factor      = image_factor
         self.transform         = transforms.Compose([transforms.Resize(int(img_size))])
-                
+        self.use_model_loss    = use_model_loss
+        
         self.conv = CapsConvLayer (
                  in_channels       = img_channels      , # *3
                  out_channels      = conv_out_channels , # *3 
@@ -266,6 +275,9 @@ class CapsNet(nn.Module):
                  num_capsules      = num_capsules
                 )
         
+        if self.use_model_loss==False:        
+            self.classifier = CapsNetClasifier()
+        
         num_out_channels = self.image_channels * self.image_size * self.image_size
         
         self.decoder = nn.Sequential(
@@ -283,8 +295,11 @@ class CapsNet(nn.Module):
         out = self.conv(out)
         out = self.pool(out)
         out = self.primary(out)
-        out = self.digit(out)
+        out = self.digit(out) 
         
+        if self.use_model_loss==False:
+            out = self.classifier(out)
+            
         return out 
         
     def loss(self, x, y_hat, y, mean_error=True, reconstruct=True):
@@ -303,20 +318,21 @@ class CapsNet(nn.Module):
         
         batch = x.size(0)
         
-        y_hat = ((y_hat ** 2).sum(dim=2, keepdim=True) ** 0.5).to(config.DEVICE)
+        y_hat = torch.sqrt((y_hat ** 2).sum(dim=2, keepdim=True)).to(config.DEVICE)
+        zero = Variable(torch.zeros(1)).to(config.DEVICE)
         
         # Margin Loss
-        left  = torch.max(0.9 - y_hat.unsqueeze(-1), Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
-        right = torch.max(y_hat.unsqueeze(-1) - 0.1, Variable(torch.zeros(1)).to(config.DEVICE)).view(batch, -1)**2
+        left  = F.relu(0.9 - y_hat, zero).view(batch, -1)**2
+        right = F.relu(y_hat - 0.1, zero).view(batch, -1)**2
         
         y_bar = y.view(batch,self.num_classes).to(config.DEVICE)
-        print(y_bar.shape)
+        
         margin_error = (y_bar * left + 0.5  * (1. - y_bar) * right).sum(dim=1)
         
         if mean_error:
             margin_error = margin_error.mean()
         
-        return margin_error
+        return margin_error + 0.0005
 
     def reconstruct_loss(self, x, y_hat, mean_error=True):    
     
@@ -356,7 +372,7 @@ class CapsNet(nn.Module):
     def get_preduction(self, out):
         length = ((out ** 2).sum(dim=2) ** 0.5)
         
-        y_hat = (length.data.max(2)[0]).cpu()
+        y_hat = (length.data.max(2)[0])
         
         return y_hat
 

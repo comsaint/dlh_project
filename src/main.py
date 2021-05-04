@@ -41,7 +41,9 @@ def main(params):
 
     # make sure all diseases appear at least 5 times in train and validation set
     if config.VERBOSE:
+        print("Number of train images by disease:")
         print(df_train[config.TEXT_LABELS].sum())
+        print("Number of validation images by disease:")
         print(df_val[config.TEXT_LABELS].sum())
     assert all(df_train[config.TEXT_LABELS].sum() >= 5), \
         "At least 1 disease appears less than 5 times in train set!"

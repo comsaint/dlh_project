@@ -18,6 +18,9 @@ def get_hook_names(model_name):
     elif model_name == 'densenet':
         fm_name = "features.norm5"
         pool_name = "features.norm5"
+    elif model_name.startswith('capsnet'):
+        fm_name = "conv"
+        pool_name = "digit"
     else:
         raise NotImplementedError(f"Feature map and pooling hooks not implemented for model '{model_name}'.")
     return fm_name, pool_name
@@ -46,8 +49,7 @@ def initialize_model(params,
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-        fm_name, pool_name = get_hook_names(model_name)
-        fm_size = 2048 * 1 * 1
+        fm_size = 512
 
     elif model_name == "densenet":
         """ 
@@ -62,7 +64,6 @@ def initialize_model(params,
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-        fm_name, pool_name = get_hook_names(model_name)
         fm_size = 1024 * 7 * 7
 
     elif model_name == "resnext50":
@@ -77,7 +78,6 @@ def initialize_model(params,
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-        fm_name, pool_name = get_hook_names(model_name)
         fm_size = 2048 * 1 * 1
 
     elif model_name == "resnet50":
@@ -92,7 +92,6 @@ def initialize_model(params,
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-        fm_name, pool_name = get_hook_names(model_name)
         fm_size = 2048 * 1 * 1
 
     elif model_name == "resnext101":
@@ -107,10 +106,18 @@ def initialize_model(params,
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-        fm_name, pool_name = get_hook_names(model_name)
         fm_size = 2048 * 1 * 1
 
     # FIXME: add hooks to models.
+    elif model_name == "capsnet":
+        """ 
+        Capsnet 28x28 3 Chnl in, 16 chnl out
+        """
+        input_size = 28
+        use_model_loss = True
+        model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9,use_model_loss=use_model_loss)         
+        fm_size = (num_classes) * 16 * 1
+
     elif model_name == "capsnet28_3_16":
         """ 
         Capsnet 28x28 3 Chnl in, 16 chnl out
@@ -118,6 +125,7 @@ def initialize_model(params,
         input_size = 28
         model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9) 
         use_model_loss = True
+        fm_size = (num_classes) * 16 * 1
 
     elif model_name == "capsnet28_3_32":
         """ 
@@ -126,6 +134,7 @@ def initialize_model(params,
         input_size = 28
         model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9) 
         use_model_loss = True
+        fm_size = 32 * (num_classes) * 1
 
     elif model_name == "capsnet56_3_32":
         """ 
@@ -134,6 +143,7 @@ def initialize_model(params,
         input_size = 56
         model_ft = CapsNet(img_size=input_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9) 
         use_model_loss = True       
+        fm_size = 32 * (num_classes) * 1
 
     elif model_name == "capsnet+densenet":
         """ 
@@ -141,7 +151,7 @@ def initialize_model(params,
         """
         input_size = 224
         image_factor = 8
-        img_size=int(input_size/image_factor)
+        img_size = int(input_size/image_factor)
 
         if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.densenet121(pretrained=True)
@@ -150,8 +160,16 @@ def initialize_model(params,
             model_ft = models.densenet121(pretrained=False)
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, img_size*img_size*3 )
-        model_ft = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft, image_factor=image_factor)        
-        use_model_loss = True       
+        model_ft = CapsNet(img_size=img_size,
+                           img_channels=3,
+                           conv_out_channels=256,
+                           out_channels=16,
+                           num_classes=num_classes,
+                           conv_kernel_size=9,
+                           conv_unit_model=model_ft,
+                           image_factor=image_factor)
+        use_model_loss = True
+        fm_size = num_classes * 16 * 1
 
     elif model_name == "capsnet+resnext50":
         """ 
@@ -167,18 +185,26 @@ def initialize_model(params,
             model_ft = models.resnext50_32x4d(pretrained=False)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
-        model_ft.load_state_dict(torch.load('../models/resnext50_10epoch.pth'))
+        model_ft.load_state_dict(torch.load('../models/resnext50_10epoch.pth'))  # TODO: use ROOT_PATH for hyper-search
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, (img_size*img_size*3) )
-        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=32, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
-        model_cp.load_state_dict(torch.load('../models/capsnet56_3_32_5epoch.pth'))
+        model_cp = CapsNet(img_size=img_size,
+                           img_channels=3,
+                           conv_out_channels=256,
+                           out_channels=16,
+                           num_classes=num_classes,
+                           conv_kernel_size=9,
+                           image_factor=image_factor)
+        model_cp.load_state_dict(torch.load('../models/capsnet56_3_32_5epoch.pth'))  # TODO: use ROOT_PATH for hyper-search
         
         model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
         use_model_loss = False              
+        fm_size = 16 * num_classes * 1
 
     else:
         raise Exception(f"Invalid model name '{model_name}'")
 
+    fm_name, pool_name = get_hook_names(model_name)
     model_ft = model_ft.to(DEVICE)
 
     return model_ft, input_size, use_model_loss, fm_name, pool_name, fm_size
