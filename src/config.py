@@ -70,7 +70,7 @@ params = {
     "NUM_EPOCHS": 100,
     "BATCH_SIZE": 32,
     "FINE_TUNE": True,
-    "FINE_TUNE_START_EPOCH": 2,
+    "FINE_TUNE_START_EPOCH": 5,
     "FINE_TUNE_STEP_WISE": True,
     "EARLY_STOP_EPOCHS": 10,
     "VAL_SIZE": 0.05,
