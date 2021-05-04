@@ -108,9 +108,9 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5):
             g_train_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
             l_train_params = sum(p.numel() for p in l_model.parameters() if p.requires_grad)
             f_train_params = sum(p.numel() for p in f_model.parameters() if p.requires_grad)
-            g_perc = g_train_params / g_train_params * 100
-            l_perc = l_train_params / l_train_params * 100
-            f_perc = f_train_params / f_train_params * 100
+            g_perc = g_train_params / g_all_params * 100
+            l_perc = l_train_params / l_all_params * 100
+            f_perc = f_train_params / f_all_params * 100
             print(f"Number of trainable parameters in Global model: {g_train_params}; Total: {g_all_params}({g_perc}%)")
             print(f"Number of trainable parameters in Local model: {l_train_params}; Total: {l_all_params}({l_perc}%)")
             print(f"Number of trainable parameters in Fusion model: {f_train_params}; Total: {f_all_params}({f_perc}%)")
