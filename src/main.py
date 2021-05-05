@@ -7,7 +7,7 @@ import config
 from dataset import make_data_transform, load_data
 from data_processing import load_data_file, make_train_test_split, make_train_val_split
 from model import initialize_model, SimpleCLF
-from ray import tune
+#from ray import tune
 
 
 def main(params):
@@ -131,6 +131,7 @@ def main(params):
 
 
 if __name__ == "__main__":
+    '''
     if config.HYPERSEARCH:
         analysis = tune.run(
             main,
@@ -146,3 +147,5 @@ if __name__ == "__main__":
         print("End search.")
     else:
         main(config.params)
+    '''
+    main(config.params)

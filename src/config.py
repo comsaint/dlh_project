@@ -1,8 +1,8 @@
 import torch
-from ray import tune
+#from ray import tune
 import os
 
-trial = 3
+trial = 1
 HYPERSEARCH = False
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -45,6 +45,7 @@ if NUM_CLASSES == 14:
 elif NUM_CLASSES == 15:
     TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',  'Pleural_Thickening', 'Hernia', 'No Finding']
 
+'''
 # search space of hyper-parameters
 params_hypersearch = {
             "NUM_EPOCHS": 100,
@@ -64,6 +65,7 @@ params_hypersearch = {
             "FUSION_MODEL_NAME": 'fusion',
             "FINE_TUNE_STEP_WISE": tune.choice([True, False]),
 }
+'''
 
 # config of single pass
 params = {
@@ -80,8 +82,8 @@ params = {
     "FUSION_LEARNING_RATE": 1e-4,
     "USE_CLASS_WEIGHT": True,
     "USE_EXTRA_INPUT": True,
-    "GLOBAL_MODEL_NAME": 'resnet18',
-    "LOCAL_MODEL_NAME": 'resnet18',
+    "GLOBAL_MODEL_NAME": 'resnet50',
+    "LOCAL_MODEL_NAME": 'resnet50',
     "FUSION_MODEL_NAME": 'fusion',
     "AUGMENTATIONS": ['rot', 'hflip']  # see dataset.make_data_transform() for options
 }
