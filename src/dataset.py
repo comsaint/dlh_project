@@ -15,25 +15,33 @@ torch.manual_seed(config.SEED)
 os.environ["PYTHONHASHSEED"] = str(config.SEED)
 
 
-def make_data_transform(input_size=224):
+def make_data_transform(input_size=224, additional_transforms=None):
     m = [0.485, 0.456, 0.406]
     sd = [0.229, 0.224, 0.225]
+
+    code_map = {
+        'rot': transforms.RandomRotation(15),
+        'hflip': transforms.RandomHorizontalFlip(p=0.5),
+        'vflip': transforms.RandomVerticalFlip(p=0.5),
+        'rcp': transforms.RandomResizedCrop(size=224),
+    }
+
+    train_transform = transforms.Compose([
+                        transforms.Resize(input_size),
+                        transforms.ToTensor(),
+                        transforms.Normalize(mean=m, std=sd)])
+    if additional_transforms:
+        for _t in additional_transforms[::-1]:
+            train_transform.transforms.insert(0, code_map[_t])
+
+    test_transform = transforms.Compose([
+                    transforms.Resize(input_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=m, std=sd)
+                ])
     return {
-                'train': transforms.Compose([
-                    transforms.Resize(input_size),
-                    #transforms.RandomResizedCrop(input_size),
-                    #transforms.CenterCrop(input_size),
-                    #transforms.RandomHorizontalFlip(),  # data augmentation
-                    #transforms.RandomRotation(15),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=m, std=sd)
-                ]),
-                'test': transforms.Compose([
-                    transforms.Resize(input_size),
-                    #transforms.CenterCrop(input_size),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=m, std=sd)
-                ]),
+                'train': train_transform,
+                'test': test_transform
             }
 
 
@@ -66,17 +74,20 @@ class NihDataset(Dataset):
                 ])
             image = tmp_tf(image)
 
-        return image, target
+        extra_features = torch.FloatTensor(
+            self.dataframe.loc[idx, ['Patient Age', 'Patient Gender', 'View Position']].values
+        )
+        return image, target, extra_features
 
 
-def load_data(dataframe, batch_size=config.BATCH_SIZE, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=config.GREY_SCALE):
+def load_data(params, dataframe, transform=None, shuffle=True, num_workers=config.NUM_WORKERS, greyscale=config.GREY_SCALE):
     """
     Data Loader with batch loading and transform.
     """
     image_data = NihDataset(dataframe, transform=transform, greyscale=greyscale)
     pin = config.DEVICE == 'cpu'
     loader = torch.utils.data.DataLoader(image_data,
-                                         batch_size=batch_size,
+                                         batch_size=params['BATCH_SIZE'],
                                          shuffle=shuffle,
                                          num_workers=num_workers,
                                          pin_memory=pin)

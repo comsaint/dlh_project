@@ -15,7 +15,8 @@ sys.path.insert(0, '../src')
 random.seed(config.SEED)
 
 
-def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR, index_file=config.INDEX_FILE, sampling=config.SAMPLING):
+def load_data_file(root_dir=config.ROOT_PATH, data_dir=config.PROCESSED_DATA_DIR,
+                   index_file=config.INDEX_FILE, sampling=config.SAMPLING):
     """
     load the data file (with image indices, image path, labels etc.)
     """
@@ -84,8 +85,9 @@ def make_train_test_split(df_data,
     return df_train.reset_index(drop=True), df_valid.reset_index(drop=True)
 
 
-def make_train_val_split(df, test_size=config.VAL_SIZE):
-    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=config.SEED)
+def make_train_val_split(params, df):
+    print(type(params['VAL_SIZE']))
+    gss = GroupShuffleSplit(n_splits=1, test_size=params['VAL_SIZE'], random_state=config.SEED)
     for train_idx, test_idx in gss.split(df, groups=df['Patient ID']):
         df_train, df_val = df[df.index.isin(train_idx)], df[df.index.isin(test_idx)]
     return df_train.reset_index(drop=True), df_val.reset_index(drop=True)

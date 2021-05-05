@@ -1,7 +1,7 @@
 import sys
 import torch.nn as nn
 from torchvision import models
-from config import FINE_TUNE, NUM_CLASSES, DEVICE, USE_EXTRA_INPUT
+from config import NUM_CLASSES, DEVICE
 import torch
 from caps_net import CapsNet, CapsNetworks
 
@@ -18,8 +18,6 @@ def get_hook_names(model_name):
     elif model_name == 'densenet':
         fm_name = "features.norm5"
         pool_name = "features.norm5"
-    elif model_name == 'fc':
-        fm_name, pool_name = '', ''
     elif model_name.startswith('capsnet'):
         fm_name = "conv"
         pool_name = "digit"
@@ -27,24 +25,6 @@ def get_hook_names(model_name):
         raise NotImplementedError(f"Feature map and pooling hooks not implemented for model '{model_name}'.")
     return fm_name, pool_name
 
-def unfreeze_last_frozen_layer(model):
-    last_name  = None
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            break
-        else:
-            last_name  = name
-    if last_name == None:
-        return
-    if last_name.count('.') == 1:
-        layer = last_name.split('.')[0]
-    elif last_name.count('.') > 1:
-        layer = last_name.split('.')[0]+'.'+last_name.split('.')[1]
-    else:
-        return
-    for name, param in model.named_parameters():
-        if name.startswith(layer):
-            param.requires_grad = True
 
 def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
@@ -52,15 +32,15 @@ def set_parameter_requires_grad(model, feature_extracting):
             param.requires_grad = False
 
 
-def initialize_model(model_name,
-                     num_classes=NUM_CLASSES,
-                     fine_tune=FINE_TUNE):
+def initialize_model(params,
+                     model_name,
+                     num_classes=NUM_CLASSES):
     use_model_loss = False
     if model_name == "resnet18":
         """ 
         Resnet18
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnet18(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -69,13 +49,13 @@ def initialize_model(model_name,
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-        fm_size = 2048 * 1 * 1
+        fm_size = 512
 
     elif model_name == "densenet":
         """ 
         Densenet
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.densenet121(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -90,7 +70,7 @@ def initialize_model(model_name,
         """
         ResNeXt-50
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnext50_32x4d(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -104,7 +84,7 @@ def initialize_model(model_name,
         """
         ResNet-50
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnet50(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -118,7 +98,7 @@ def initialize_model(model_name,
         """
         ResNeXt-101-32x8d
         """
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnext101_32x8d(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
@@ -171,18 +151,25 @@ def initialize_model(model_name,
         """
         input_size = 224
         image_factor = 8
-        img_size=int(input_size/image_factor)
+        img_size = int(input_size/image_factor)
 
-        if fine_tune:  # Tune cls layer, then all
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.densenet121(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
             model_ft = models.densenet121(pretrained=False)
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, img_size*img_size*3 )
-        model_ft = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9,conv_unit_model=model_ft, image_factor=image_factor)        
+        model_ft = CapsNet(img_size=img_size,
+                           img_channels=3,
+                           conv_out_channels=256,
+                           out_channels=16,
+                           num_classes=num_classes,
+                           conv_kernel_size=9,
+                           conv_unit_model=model_ft,
+                           image_factor=image_factor)
         use_model_loss = True
-        fm_size = (num_classes) * 16 * 1       
+        fm_size = num_classes * 16 * 1
 
     elif model_name == "capsnet+resnext50":
         """ 
@@ -190,23 +177,29 @@ def initialize_model(model_name,
         """
         input_size = 224
         image_factor = 4
-        img_size=int(input_size/(image_factor))
-        if fine_tune:  # Tune cls layer, then all
+        img_size = int(input_size/image_factor)
+        if params['FINE_TUNE']:  # Tune cls layer, then all
             model_ft = models.resnext50_32x4d(pretrained=True)
             set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
         else:  # train from scratch
             model_ft = models.resnext50_32x4d(pretrained=False)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
-        model_ft.load_state_dict(torch.load('../models/resnext50_10epoch.pth'))
+        model_ft.load_state_dict(torch.load('../models/resnext50_10epoch.pth'))  # TODO: use ROOT_PATH for hyper-search
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, (img_size*img_size*3) )
-        model_cp = CapsNet(img_size=img_size, img_channels=3,conv_out_channels=256, out_channels=16, num_classes=num_classes,conv_kernel_size=9, image_factor=image_factor)
-        model_cp.load_state_dict(torch.load('../models/capsnet56_3_32_5epoch.pth'))
+        model_cp = CapsNet(img_size=img_size,
+                           img_channels=3,
+                           conv_out_channels=256,
+                           out_channels=16,
+                           num_classes=num_classes,
+                           conv_kernel_size=9,
+                           image_factor=image_factor)
+        model_cp.load_state_dict(torch.load('../models/capsnet56_3_32_5epoch.pth'))  # TODO: use ROOT_PATH for hyper-search
         
         model_ft = CapsNetworks(preNet=model_ft, capsNet=model_cp)
         use_model_loss = False              
-        fm_size = 16 * (num_classes) * 1       
+        fm_size = 16 * num_classes * 1
 
     else:
         raise Exception(f"Invalid model name '{model_name}'")
@@ -222,8 +215,6 @@ class SimpleCLF(nn.Module):
     def __init__(self, input_size, output_size=NUM_CLASSES):
         super(SimpleCLF, self).__init__()
         # an affine operation: y = Wx + b
-        if USE_EXTRA_INPUT:
-            input_size += 3
         self.fc = nn.Linear(input_size, output_size)
 
     def forward(self, global_pool, local_pool, extra_features):
@@ -231,5 +222,6 @@ class SimpleCLF(nn.Module):
             fusion = torch.cat((global_pool, local_pool), 1)
         else:
             fusion = torch.cat((global_pool, local_pool, extra_features), 1)
+        # TODO: try different architectures
         x = self.fc(fusion)
         return x

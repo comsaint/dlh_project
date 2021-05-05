@@ -1,10 +1,15 @@
 import torch
-from datetime import datetime
+#from ray import tune
+import os
+
+trial = 1
+HYPERSEARCH = False
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # ##################################
 # Paths - DO NOT EDIT!
-ROOT_PATH = '../'
+ROOT_PATH = os.path.join(os.path.dirname(__file__), '..')
 
 SRC_DIR = 'src/'
 DATA_DIR = 'data/'
@@ -17,46 +22,20 @@ OUT_DIR='out/'
 INDEX_FILE = 'Data_Entry_2017_v2020.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
-# ##################################
 
-# Hyperparamenters
-VAL_SIZE = 0.10  # 0.05
-NUM_EPOCHS = 50
-BATCH_SIZE = 24
-
-USE_CLASS_WEIGHT = False  # weight class samples by prevalence
-USE_EXTRA_INPUT = False  # TODO: concat age, gender and view position to features
-
-# FIXME
+# Uses model sizes unless undefined
 GLOBAL_IMAGE_SIZE = 224
 LOCAL_IMAGE_SIZE = 224
-
-# Models
-GLOBAL_MODEL_NAME = 'densenet'
-LOCAL_MODEL_NAME = 'capsnet'
-FUSION_MODEL_NAME = 'fusion'  # only for filename
-FINE_TUNE = True  # if True, fine tune a pretrained model. Otherwise train from scratch.
-FINE_TUNE_START_EPOCH = 5  # allow tuning of all parameters starting from this epoch. Ignore if FINE_TUNE==False.
-EARLY_STOP_EPOCHS = 10  # stop training if no improvement compared to last best epoch
-FINE_TUNE_STEP_WISE=True
-
-# initial learning rates
-GLOBAL_LEARNING_RATE = 1e-4
-LOCAL_LEARNING_RATE  = 1e-3  #Note: For capsnet, initial lr should be 1e-3 or higher
-FUSION_LEARNING_RATE = 1e-5
-# TODO: settings for schedulers e.g. patience etc.
-
-HEATMAP_THRESHOLD = 0.70
 
 # Other settings
 SAMPLING = 0  # samples the input data to reduce data size for quick test. 0 to disable (i.e. use all training set)
 VERBOSE = True
 MODEL_LOSS = False
 GREY_SCALE = False
-RECONSTRUCT= False
+RECONSTRUCT = False
 
 # Utilities
-NUM_WORKERS = 4
+NUM_WORKERS = 1
 SEED = 42
 
 # just for convenience. Better be inferred from data.
@@ -66,12 +45,58 @@ if NUM_CLASSES == 14:
 elif NUM_CLASSES == 15:
     TEXT_LABELS = ['Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia', 'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',  'Pleural_Thickening', 'Hernia', 'No Finding']
 
-# TensorBoard logs
-current_time = datetime.now().strftime("%Y%m%d%H%M%S")  # not used due to multiple workers
-WRITER_NAME = f"runs/experiment_fullmodel_{GLOBAL_MODEL_NAME}_{LOCAL_MODEL_NAME}_{int(VAL_SIZE*100)}_{BATCH_SIZE}_{int(HEATMAP_THRESHOLD*100)}"
-if USE_CLASS_WEIGHT:
+'''
+# search space of hyper-parameters
+params_hypersearch = {
+            "NUM_EPOCHS": 100,
+            "BATCH_SIZE": 32,
+            "FINE_TUNE": tune.choice([True, False]),
+            "FINE_TUNE_START_EPOCH": 5,
+            "EARLY_STOP_EPOCHS": 10,
+            "VAL_SIZE": tune.grid_search([0.05, 0.01, 0.01]),
+            "HEATMAP_THRESHOLD":  tune.uniform(0.6, 0.8),
+            "GLOBAL_LEARNING_RATE": tune.loguniform(1e-6, 1e-3),
+            "LOCAL_LEARNING_RATE": tune.loguniform(1e-6, 1e-3),
+            "FUSION_LEARNING_RATE": tune.loguniform(1e-6, 1e-3),
+            "USE_CLASS_WEIGHT": tune.choice([True, False]),
+            "USE_EXTRA_INPUT": True,
+            "GLOBAL_MODEL_NAME": tune.choice(['densenet', 'resnet50', 'resnext50', 'resnext101']),
+            "LOCAL_MODEL_NAME": tune.choice(['densenet', 'resnet50', 'resnext50', 'resnext101']),
+            "FUSION_MODEL_NAME": 'fusion',
+            "FINE_TUNE_STEP_WISE": tune.choice([True, False]),
+}
+'''
+
+# config of single pass
+params = {
+    "NUM_EPOCHS": 100,
+    "BATCH_SIZE": 32,
+    "FINE_TUNE": True,
+    "FINE_TUNE_START_EPOCH": 5,
+    "FINE_TUNE_STEP_WISE": True,
+    "EARLY_STOP_EPOCHS": 10,
+    "VAL_SIZE": 0.05,
+    "HEATMAP_THRESHOLD":  0.7,
+    "GLOBAL_LEARNING_RATE": 1e-4,
+    "LOCAL_LEARNING_RATE": 1e-4,
+    "FUSION_LEARNING_RATE": 1e-4,
+    "USE_CLASS_WEIGHT": True,
+    "USE_EXTRA_INPUT": True,
+    "GLOBAL_MODEL_NAME": 'resnet50',
+    "LOCAL_MODEL_NAME": 'resnet50',
+    "FUSION_MODEL_NAME": 'fusion',
+    "AUGMENTATIONS": ['rot', 'hflip']  # see dataset.make_data_transform() for options
+}
+
+WRITER_NAME = f"runs/experiment_fullmodel_{params['GLOBAL_MODEL_NAME']}_{params['LOCAL_MODEL_NAME']}_" \
+              f"{float(params['VAL_SIZE'])*100}_{params['BATCH_SIZE']}_{float(params['HEATMAP_THRESHOLD'])*100}"
+if params['USE_CLASS_WEIGHT']:
     WRITER_NAME += '_classw'
-if USE_EXTRA_INPUT:
+if params['USE_EXTRA_INPUT']:
     WRITER_NAME += '_extra'
-if FINE_TUNE:
+if params['FINE_TUNE']:
     WRITER_NAME += '_tune'
+if params['AUGMENTATIONS']:
+    _s = '-'.join(params['AUGMENTATIONS'])
+    WRITER_NAME += '_' + _s
+WRITER_NAME += f"_trial{trial}"
