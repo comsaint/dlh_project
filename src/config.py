@@ -35,7 +35,7 @@ GREY_SCALE = False
 RECONSTRUCT = False
 
 # Utilities
-NUM_WORKERS = 1
+NUM_WORKERS = 7
 SEED = 42
 
 # just for convenience. Better be inferred from data.
@@ -70,9 +70,9 @@ params_hypersearch = {
 # config of single pass
 params = {
     "NUM_EPOCHS": 100,
-    "BATCH_SIZE": 32,
+    "BATCH_SIZE": 16,
     "FINE_TUNE": True,
-    "FINE_TUNE_START_EPOCH": 5,
+    "FINE_TUNE_START_EPOCH": 4,
     "FINE_TUNE_STEP_WISE": True,
     "EARLY_STOP_EPOCHS": 10,
     "VAL_SIZE": 0.05,
@@ -82,10 +82,11 @@ params = {
     "FUSION_LEARNING_RATE": 1e-4,
     "USE_CLASS_WEIGHT": True,
     "USE_EXTRA_INPUT": True,
-    "GLOBAL_MODEL_NAME": 'resnet50',
-    "LOCAL_MODEL_NAME": 'resnet50',
+    "GLOBAL_MODEL_NAME": 'mobilenet',
+    "LOCAL_MODEL_NAME": 'mobilenet',
     "FUSION_MODEL_NAME": 'fusion',
-    "AUGMENTATIONS": ['rot', 'hflip']  # see dataset.make_data_transform() for options
+    "AUGMENTATIONS": ['rot', 'hflip'],  # see dataset.make_data_transform() for options
+    "RESUME": True
 }
 
 WRITER_NAME = f"runs/experiment_fullmodel_{params['GLOBAL_MODEL_NAME']}_{params['LOCAL_MODEL_NAME']}_" \

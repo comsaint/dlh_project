@@ -16,6 +16,14 @@ import torchvision.transforms.functional as F
 
 sys.path.insert(0, '../src')
 
+root_dir = config.ROOT_PATH
+ckpt_dir = config.CHECKPOINT_DIR
+folder_path = os.path.join(root_dir, ckpt_dir, config.WRITER_NAME.split('/')[-1])
+
+g_ckpt_name = 'g_checkpoint'
+l_ckpt_name = 'l_checkpoint'
+f_ckpt_name = 'f_checkpoint'
+
 random.seed(config.SEED)
 np.random.seed(config.SEED)
 torch.manual_seed(config.SEED)
@@ -23,18 +31,31 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 device = config.DEVICE
 
 
-def train_model(params, train_loader, val_loader, criterions, save_freq=5):
+def train_model(params, train_loader, val_loader, criterions, save_freq=1):
     start_time = time.time()
     print(f"    Mode          : {device}")
 
     # initialize models
-    g_model, g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size = initialize_model(params, params['GLOBAL_MODEL_NAME'])
-    l_model, l_input_size, l_use_model_loss, _, l_pool_name, l_fm_size = initialize_model(params, params['LOCAL_MODEL_NAME'])
-    f_feature_size = g_fm_size + l_fm_size
-    if params['USE_EXTRA_INPUT']:
-        f_feature_size += 3
-    f_model = SimpleCLF(input_size=f_feature_size).to(device)
-    print(f"Fusion input size: {f_feature_size}")
+    start_epoch = 1
+    if params['RESUME'] and os.path.exists(folder_path):
+        loaded_models, \
+        g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size, \
+        l_input_size, l_use_model_loss, l_pool_name, l_fm_size, start_epoch = resume_checkpoints(params)
+        g_model, l_model, f_model = loaded_models
+        if config.VERBOSE:
+            print("Models loaded from checkpoint.")
+    else:
+        if config.VERBOSE:
+            print("No checkpoint found or not resuming.")
+        g_model, g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size = \
+            initialize_model(params, params['GLOBAL_MODEL_NAME'])
+        l_model, l_input_size, l_use_model_loss, _, l_pool_name, l_fm_size = \
+            initialize_model(params, params['LOCAL_MODEL_NAME'])
+        f_feature_size = g_fm_size + l_fm_size
+        if params['USE_EXTRA_INPUT']:
+            f_feature_size += 3
+        f_model = SimpleCLF(input_size=f_feature_size).to(device)
+
     g_criterion, l_criterion, f_criterion = criterions
     print(f"    Global Model type    : {type(g_model)}")
     print(f"    Local  Model type    : {type(l_model)}")
@@ -58,7 +79,7 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5):
     
     print(f"Training started")
     unfreeze_flag = False
-    for epoch in range(1, params['NUM_EPOCHS']+1):  # loop over the dataset multiple times
+    for epoch in range(start_epoch, params['NUM_EPOCHS']+1):  # loop over the dataset multiple times
         print(f"\nEpoch {epoch}")
         epoch_start_time = time.time()
         g_model.train()
@@ -447,17 +468,13 @@ def save_checkpoints(models, epoch, optimizers, losses):
 
     root_dir = config.ROOT_PATH
     ckpt_dir = config.CHECKPOINT_DIR
-    folder_path = os.path.join(root_dir, ckpt_dir)
+    folder_path = os.path.join(root_dir, ckpt_dir, config.WRITER_NAME.split('/')[-1])
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    g_ckpt_subdir = 'g_checkpoint_' + config.WRITER_NAME.split('/')[-1]
-    l_ckpt_subdir = 'l_checkpoint_' + config.WRITER_NAME.split('/')[-1]
-    f_ckpt_subdir = 'f_checkpoint_' + config.WRITER_NAME.split('/')[-1]
-
-    g_path = os.path.join(folder_path, g_ckpt_subdir)
-    l_path = os.path.join(folder_path, l_ckpt_subdir)
-    f_path = os.path.join(folder_path, f_ckpt_subdir)
+    g_path = os.path.join(folder_path, g_ckpt_name)
+    l_path = os.path.join(folder_path, l_ckpt_name)
+    f_path = os.path.join(folder_path, f_ckpt_name)
 
     torch.save({
         'epoch': epoch,
@@ -479,6 +496,34 @@ def save_checkpoints(models, epoch, optimizers, losses):
     }, f_path)
     print(f"Checkpoint saved.")
     return None
+
+
+def resume_checkpoints(params):
+    root_dir = config.ROOT_PATH
+    ckpt_dir = config.CHECKPOINT_DIR
+    folder_path = os.path.join(root_dir, ckpt_dir, config.WRITER_NAME.split('/')[-1])
+
+    loaded_models = []
+    g_model, g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size = initialize_model(params, params['GLOBAL_MODEL_NAME'])
+    l_model, l_input_size, l_use_model_loss, _, l_pool_name, l_fm_size = initialize_model(params,
+                                                                                          params['LOCAL_MODEL_NAME'])
+    f_feature_size = g_fm_size + l_fm_size
+    if params['USE_EXTRA_INPUT']:
+        f_feature_size += 3
+    f_model = SimpleCLF(input_size=f_feature_size).to(device)
+
+    ckpt_names = [g_ckpt_name, l_ckpt_name, f_ckpt_name]
+    models = [g_model, l_model, f_model]
+    epoch = 0
+    for name, model in zip(ckpt_names, models):
+        checkpoint = torch.load(os.path.join(folder_path, name))
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.train()
+        loaded_models.append(model)
+        epoch = checkpoint['epoch'] + 1
+    return loaded_models, \
+           g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size, \
+           l_input_size, l_use_model_loss, l_pool_name, l_fm_size, epoch
 
 
 def get_hooks(model, model_name):
