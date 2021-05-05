@@ -16,6 +16,7 @@ ori_size = (GLOBAL_IMAGE_SIZE, GLOBAL_IMAGE_SIZE)
 crop_size = (LOCAL_IMAGE_SIZE, LOCAL_IMAGE_SIZE)
 
 
+# TODO: deprecated
 def load_model(model_name, model_path=None):
     model, _, _ = initialize_model(model_name,
                                    num_classes=NUM_CLASSES,

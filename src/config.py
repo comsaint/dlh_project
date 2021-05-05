@@ -14,20 +14,20 @@ PROCESSED_DATA_DIR = 'data/processed'
 RAW_DATA_DIR = 'data/raw'
 OUT_DIR='out/'
 
-INDEX_FILE = 'Data_Entry_2017.csv'
+INDEX_FILE = 'Data_Entry_2017_v2020.csv'
 TRAIN_VAL_FILE = 'train_val_list.txt'
 TEST_FILE = 'test_list.txt'
 # ##################################
 
 # Hyperparamenters
-VAL_SIZE = 0.10
+VAL_SIZE = 0.10  # 0.05
 NUM_EPOCHS = 50
 BATCH_SIZE = 24
 
 USE_CLASS_WEIGHT = False  # weight class samples by prevalence
 USE_EXTRA_INPUT = False  # TODO: concat age, gender and view position to features
 
-# Uses model sizes unless undefined
+# FIXME
 GLOBAL_IMAGE_SIZE = 224
 LOCAL_IMAGE_SIZE = 224
 
@@ -44,7 +44,7 @@ FINE_TUNE_STEP_WISE=True
 GLOBAL_LEARNING_RATE = 1e-4
 LOCAL_LEARNING_RATE  = 1e-3  #Note: For capsnet, initial lr should be 1e-3 or higher
 FUSION_LEARNING_RATE = 1e-5
-# TODO: settings for optimizer e.g. patience etc.
+# TODO: settings for schedulers e.g. patience etc.
 
 HEATMAP_THRESHOLD = 0.70
 

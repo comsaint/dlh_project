@@ -4,7 +4,7 @@ A script for quick testing of a trained model.
 from dataset import load_data, make_data_transform
 from data_processing import load_data_file, make_train_test_split
 from model import initialize_model
-from train_model import eval_model
+from train_model import validate_model
 import torch
 from torch import nn
 import config
@@ -36,5 +36,5 @@ if __name__ == "__main__":
                             shuffle=False,
                             num_workers=7)
     print("Evaluating...")
-    eval_model(m, test_loader, criterion=nn.BCEWithLogitsLoss(), verbose=True)
+    validate_model(m, test_loader, criterion=nn.BCEWithLogitsLoss(), verbose=True)
     print("End of script.")
