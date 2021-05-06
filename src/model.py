@@ -9,7 +9,10 @@ sys.path.insert(0, '../src')
 
 
 def get_hook_names(model_name):
-    if model_name == 'resnet18':
+    if model_name == "mobilenet":
+        fm_name = 'features.16'
+        pool_name = 'avgpool'
+    elif model_name == 'resnet18':
         fm_name = "layer4.1.bn2"
         pool_name = "avgpool"
     elif model_name in ['resnet50', 'resnext50', 'resnext101']:
@@ -36,7 +39,21 @@ def initialize_model(params,
                      model_name,
                      num_classes=NUM_CLASSES):
     use_model_loss = False
-    if model_name == "resnet18":
+    if model_name == "mobilenet":
+        """
+        MobileNetV3
+        """
+        if params['FINE_TUNE']:  # Tune cls layer, then all
+            model_ft = models.mobilenet_v3_large(pretrained=True)
+            set_parameter_requires_grad(model_ft, feature_extracting=True)  # extract
+        else:  # train from scratch
+            model_ft = models.mobilenet_v3_large(pretrained=False)
+            set_parameter_requires_grad(model_ft, feature_extracting=False)  # extract
+        num_ftrs = model_ft.classifier[-1].in_features
+        model_ft.classifier[-1] = nn.Linear(num_ftrs, num_classes)
+        input_size = 224
+        fm_size = model_ft.classifier[0].in_features
+    elif model_name == "resnet18":
         """ 
         Resnet18
         """

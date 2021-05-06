@@ -35,7 +35,7 @@ GREY_SCALE = False
 RECONSTRUCT = False
 
 # Utilities
-NUM_WORKERS = 1
+NUM_WORKERS = 7
 SEED = 42
 
 # just for convenience. Better be inferred from data.
@@ -78,14 +78,15 @@ params = {
     "VAL_SIZE": 0.05,
     "HEATMAP_THRESHOLD":  0.7,
     "GLOBAL_LEARNING_RATE": 1e-4,
-    "LOCAL_LEARNING_RATE": 1e-3,
+    "LOCAL_LEARNING_RATE": 1e-4,
     "FUSION_LEARNING_RATE": 1e-4,
     "USE_CLASS_WEIGHT": True,
     "USE_EXTRA_INPUT": True,
-    "GLOBAL_MODEL_NAME": 'densenet',
-    "LOCAL_MODEL_NAME": 'capsnet',
+    "GLOBAL_MODEL_NAME": 'mobilenet',
+    "LOCAL_MODEL_NAME": 'mobilenet',
     "FUSION_MODEL_NAME": 'fusion',
-    "AUGMENTATIONS": ['rot', 'hflip']  # see dataset.make_data_transform() for options
+    "AUGMENTATIONS": ['rot', 'hflip'],  # see dataset.make_data_transform() for options
+    "RESUME": True
 }
 
 WRITER_NAME = f"runs/experiment_fullmodel_{params['GLOBAL_MODEL_NAME']}_{params['LOCAL_MODEL_NAME']}_" \

@@ -16,6 +16,14 @@ import torchvision.transforms.functional as F
 
 sys.path.insert(0, '../src')
 
+root_dir = config.ROOT_PATH
+ckpt_dir = config.CHECKPOINT_DIR
+folder_path = os.path.join(root_dir, ckpt_dir, config.WRITER_NAME.split('/')[-1])
+
+g_ckpt_name_prefix = 'g_checkpoint'
+l_ckpt_name_prefix = 'l_checkpoint'
+f_ckpt_name_prefix = 'f_checkpoint'
+
 random.seed(config.SEED)
 np.random.seed(config.SEED)
 torch.manual_seed(config.SEED)
@@ -23,18 +31,31 @@ os.environ["PYTHONHASHSEED"] = str(config.SEED)
 device = config.DEVICE
 
 
-def train_model(params, train_loader, val_loader, criterions, save_freq=5):
+def train_model(params, train_loader, val_loader, criterions, save_freq=1):
     start_time = time.time()
     print(f"    Mode          : {device}")
 
     # initialize models
-    g_model, g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size = initialize_model(params, params['GLOBAL_MODEL_NAME'])
-    l_model, l_input_size, l_use_model_loss, _, l_pool_name, l_fm_size = initialize_model(params, params['LOCAL_MODEL_NAME'])
-    f_feature_size = g_fm_size + l_fm_size
-    if params['USE_EXTRA_INPUT']:
-        f_feature_size += 3
-    f_model = SimpleCLF(input_size=f_feature_size).to(device)
-    print(f"Fusion input size: {f_feature_size}")
+    start_epoch = 1
+    if params['RESUME'] and os.path.exists(folder_path):
+        loaded_models, \
+        g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size, \
+        l_input_size, l_use_model_loss, l_pool_name, l_fm_size, start_epoch = resume_checkpoints(params)
+        g_model, l_model, f_model = loaded_models
+        if config.VERBOSE:
+            print("Models loaded from checkpoint.")
+    else:
+        if config.VERBOSE:
+            print("No checkpoint found or not resuming.")
+        g_model, g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size = \
+            initialize_model(params, params['GLOBAL_MODEL_NAME'])
+        l_model, l_input_size, l_use_model_loss, _, l_pool_name, l_fm_size = \
+            initialize_model(params, params['LOCAL_MODEL_NAME'])
+        f_feature_size = g_fm_size + l_fm_size
+        if params['USE_EXTRA_INPUT']:
+            f_feature_size += 3
+        f_model = SimpleCLF(input_size=f_feature_size).to(device)
+
     g_criterion, l_criterion, f_criterion = criterions
     print(f"    Global Model type    : {type(g_model)}")
     print(f"    Local  Model type    : {type(l_model)}")
@@ -51,14 +72,14 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5):
 
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
-    best_model_paths = ['', '', '']
+    best_model_paths = save_models(params, [g_model, l_model, f_model], 1, best=True, dry_run=True)
     best_epoch = 1
     cudnn.benchmark = True
     torch.cuda._lazy_init()
     
     print(f"Training started")
     unfreeze_flag = False
-    for epoch in range(1, params['NUM_EPOCHS']+1):  # loop over the dataset multiple times
+    for epoch in range(start_epoch, params['NUM_EPOCHS']+1):  # loop over the dataset multiple times
         print(f"\nEpoch {epoch}")
         epoch_start_time = time.time()
         g_model.train()
@@ -100,6 +121,10 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5):
                 l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=params['LOCAL_LEARNING_RATE'] / 5)
             elif config.VERBOSE:
                 print("No more layer to unfreeze in Local model.")
+            if not g_ufl and not l_ufl:
+                unfreeze_flag = False
+                if config.VERBOSE:
+                    print("All models are unfrozen.")
 
         if config.VERBOSE:
             g_all_params = sum([p.numel() for p in g_model.parameters()])
@@ -418,7 +443,9 @@ def eval_models(params,
            y_true
 
 
-def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
+def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR,
+                best=False,
+                dry_run=False):
     g_model, l_model, f_model = models
 
     model_subdir = 'model_' + config.WRITER_NAME.split('/')[-1]
@@ -426,17 +453,17 @@ def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     if best:
-        g_path = os.path.join(folder_path, f'{params["GLOBAL_MODEL_NAME"]}_best.pth')
-        l_path = os.path.join(folder_path, f'{params["LOCAL_MODEL_NAME"]}_best.pth')
-        f_path = os.path.join(folder_path, f'{params["FUSION_MODEL_NAME"]}_best.pth')
+        g_path = os.path.join(folder_path, f'global_{params["GLOBAL_MODEL_NAME"]}_best.pth')
+        l_path = os.path.join(folder_path, f'local_{params["LOCAL_MODEL_NAME"]}_best.pth')
+        f_path = os.path.join(folder_path, f'fusion_{params["FUSION_MODEL_NAME"]}_best.pth')
     else:
-        g_path = os.path.join(folder_path, f'{params["GLOBAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
-        l_path = os.path.join(folder_path, f'{params["LOCAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
-        f_path = os.path.join(folder_path, f'{params["FUSION_MODEL_NAME"]}_{num_epochs}epoch.pth')
-
-    torch.save(g_model.state_dict(), g_path)
-    torch.save(l_model.state_dict(), l_path)
-    torch.save(f_model.state_dict(), f_path)
+        g_path = os.path.join(folder_path, f'global_{params["GLOBAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
+        l_path = os.path.join(folder_path, f'local_{params["LOCAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
+        f_path = os.path.join(folder_path, f'fusion_{params["FUSION_MODEL_NAME"]}_{num_epochs}epoch.pth')
+    if dry_run is False:
+        torch.save(g_model.state_dict(), g_path)
+        torch.save(l_model.state_dict(), l_path)
+        torch.save(f_model.state_dict(), f_path)
     return [g_path, l_path, f_path]
 
 
@@ -447,17 +474,38 @@ def save_checkpoints(models, epoch, optimizers, losses):
 
     root_dir = config.ROOT_PATH
     ckpt_dir = config.CHECKPOINT_DIR
-    folder_path = os.path.join(root_dir, ckpt_dir)
+    folder_path = os.path.join(root_dir, ckpt_dir, config.WRITER_NAME.split('/')[-1])
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    g_ckpt_subdir = 'g_checkpoint_' + config.WRITER_NAME.split('/')[-1]
-    l_ckpt_subdir = 'l_checkpoint_' + config.WRITER_NAME.split('/')[-1]
-    f_ckpt_subdir = 'f_checkpoint_' + config.WRITER_NAME.split('/')[-1]
+    # overwrite the latest epoch
+    g_path = os.path.join(folder_path, g_ckpt_name_prefix)
+    l_path = os.path.join(folder_path, l_ckpt_name_prefix)
+    f_path = os.path.join(folder_path, f_ckpt_name_prefix)
 
-    g_path = os.path.join(folder_path, g_ckpt_subdir)
-    l_path = os.path.join(folder_path, l_ckpt_subdir)
-    f_path = os.path.join(folder_path, f_ckpt_subdir)
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': g_model.state_dict(),
+        'optimizer_state_dict': g_optimizer.state_dict(),
+        'loss': g_loss,
+    }, g_path)
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': l_model.state_dict(),
+        'optimizer_state_dict': l_optimizer.state_dict(),
+        'loss': l_loss,
+    }, l_path)
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': f_model.state_dict(),
+        'optimizer_state_dict': f_optimizer.state_dict(),
+        'loss': f_loss,
+    }, f_path)
+
+    # also save this epoch
+    g_path = os.path.join(folder_path, g_ckpt_name_prefix + f"_{epoch}")
+    l_path = os.path.join(folder_path, l_ckpt_name_prefix + f"_{epoch}")
+    f_path = os.path.join(folder_path, f_ckpt_name_prefix + f"_{epoch}")
 
     torch.save({
         'epoch': epoch,
@@ -481,6 +529,34 @@ def save_checkpoints(models, epoch, optimizers, losses):
     return None
 
 
+def resume_checkpoints(params):
+    root_dir = config.ROOT_PATH
+    ckpt_dir = config.CHECKPOINT_DIR
+    folder_path = os.path.join(root_dir, ckpt_dir, config.WRITER_NAME.split('/')[-1])
+
+    loaded_models = []
+    g_model, g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size = initialize_model(params, params['GLOBAL_MODEL_NAME'])
+    l_model, l_input_size, l_use_model_loss, _, l_pool_name, l_fm_size = initialize_model(params,
+                                                                                          params['LOCAL_MODEL_NAME'])
+    f_feature_size = g_fm_size + l_fm_size
+    if params['USE_EXTRA_INPUT']:
+        f_feature_size += 3
+    f_model = SimpleCLF(input_size=f_feature_size).to(device)
+
+    ckpt_names = [g_ckpt_name_prefix, l_ckpt_name_prefix, f_ckpt_name_prefix]
+    models = [g_model, l_model, f_model]
+    epoch = 0
+    for name, model in zip(ckpt_names, models):
+        checkpoint = torch.load(os.path.join(folder_path, name))
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.train()
+        loaded_models.append(model)
+        epoch = checkpoint['epoch'] + 1
+    return loaded_models, \
+           g_input_size, g_use_model_loss, g_fm_name, g_pool_name, g_fm_size, \
+           l_input_size, l_use_model_loss, l_pool_name, l_fm_size, epoch
+
+
 def get_hooks(model, model_name):
     # prepare hook for branches
     activation = dict()
@@ -498,6 +574,7 @@ def get_hooks(model, model_name):
     return activation
 
 
+# FIXME: does not work for DenseNet
 def unfreeze_last_frozen_layer(model):
     last_frozen_layer = None
     # get the name of last frozen layer
