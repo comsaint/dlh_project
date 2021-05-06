@@ -99,6 +99,9 @@ def main(params):
     ##############################################
     # Test on the best models
     ##############################################
+    print("Testing on the best model...")
+    if config.VERBOSE:
+        print(f"Best model paths: {best_model_paths}")
     g_best_path, l_best_path, f_best_path = best_model_paths
     g_model, g_input_size, _, g_fm_name, g_pool_name, g_fm_size = initialize_model(params, params['GLOBAL_MODEL_NAME'])
     l_model, l_input_size, _, _, l_pool_name, l_fm_size = initialize_model(params, params['LOCAL_MODEL_NAME'])

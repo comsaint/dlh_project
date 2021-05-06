@@ -476,9 +476,34 @@ def save_checkpoints(models, epoch, optimizers, losses):
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
+    # overwrite the latest epoch
     g_path = os.path.join(folder_path, g_ckpt_name)
     l_path = os.path.join(folder_path, l_ckpt_name)
     f_path = os.path.join(folder_path, f_ckpt_name)
+
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': g_model.state_dict(),
+        'optimizer_state_dict': g_optimizer.state_dict(),
+        'loss': g_loss,
+    }, g_path)
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': l_model.state_dict(),
+        'optimizer_state_dict': l_optimizer.state_dict(),
+        'loss': l_loss,
+    }, l_path)
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': f_model.state_dict(),
+        'optimizer_state_dict': f_optimizer.state_dict(),
+        'loss': f_loss,
+    }, f_path)
+
+    # also save this epoch
+    g_path = os.path.join(folder_path, g_ckpt_name + f"_{epoch}")
+    l_path = os.path.join(folder_path, l_ckpt_name + f"_{epoch}")
+    f_path = os.path.join(folder_path, f_ckpt_name + f"_{epoch}")
 
     torch.save({
         'epoch': epoch,
@@ -547,6 +572,7 @@ def get_hooks(model, model_name):
     return activation
 
 
+# FIXME: does not work for DenseNet
 def unfreeze_last_frozen_layer(model):
     last_frozen_layer = None
     # get the name of last frozen layer
