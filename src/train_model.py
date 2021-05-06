@@ -121,6 +121,10 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=1):
                 l_optimizer, l_scheduler = make_optimizer_and_scheduler(l_model, lr=params['LOCAL_LEARNING_RATE'] / 5)
             elif config.VERBOSE:
                 print("No more layer to unfreeze in Local model.")
+            if not g_ufl and not l_ufl:
+                unfreeze_flag = False
+                if config.VERBOSE:
+                    print("All models are unfrozen.")
 
         if config.VERBOSE:
             g_all_params = sum([p.numel() for p in g_model.parameters()])
@@ -447,13 +451,13 @@ def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     if best:
-        g_path = os.path.join(folder_path, f'{params["GLOBAL_MODEL_NAME"]}_best.pth')
-        l_path = os.path.join(folder_path, f'{params["LOCAL_MODEL_NAME"]}_best.pth')
-        f_path = os.path.join(folder_path, f'{params["FUSION_MODEL_NAME"]}_best.pth')
+        g_path = os.path.join(folder_path, f'global_{params["GLOBAL_MODEL_NAME"]}_best.pth')
+        l_path = os.path.join(folder_path, f'local_{params["LOCAL_MODEL_NAME"]}_best.pth')
+        f_path = os.path.join(folder_path, f'fusion_{params["FUSION_MODEL_NAME"]}_best.pth')
     else:
-        g_path = os.path.join(folder_path, f'{params["GLOBAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
-        l_path = os.path.join(folder_path, f'{params["LOCAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
-        f_path = os.path.join(folder_path, f'{params["FUSION_MODEL_NAME"]}_{num_epochs}epoch.pth')
+        g_path = os.path.join(folder_path, f'global_{params["GLOBAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
+        l_path = os.path.join(folder_path, f'local_{params["LOCAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
+        f_path = os.path.join(folder_path, f'fusion_{params["FUSION_MODEL_NAME"]}_{num_epochs}epoch.pth')
 
     torch.save(g_model.state_dict(), g_path)
     torch.save(l_model.state_dict(), l_path)
