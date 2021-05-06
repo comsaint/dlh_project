@@ -20,9 +20,9 @@ root_dir = config.ROOT_PATH
 ckpt_dir = config.CHECKPOINT_DIR
 folder_path = os.path.join(root_dir, ckpt_dir, config.WRITER_NAME.split('/')[-1])
 
-g_ckpt_name = 'g_checkpoint'
-l_ckpt_name = 'l_checkpoint'
-f_ckpt_name = 'f_checkpoint'
+g_ckpt_name_prefix = 'g_checkpoint'
+l_ckpt_name_prefix = 'l_checkpoint'
+f_ckpt_name_prefix = 'f_checkpoint'
 
 random.seed(config.SEED)
 np.random.seed(config.SEED)
@@ -72,7 +72,7 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=1):
 
     train_losses, val_losses, val_rocs = [], [], []
     best_val_loss, roc_at_best_val_loss = inf, 0.0
-    best_model_paths = ['', '', '']
+    best_model_paths = save_models(params, [g_model, l_model, f_model], 1, best=True, dry_run=True)
     best_epoch = 1
     cudnn.benchmark = True
     torch.cuda._lazy_init()
@@ -443,7 +443,9 @@ def eval_models(params,
            y_true
 
 
-def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR, best=False):
+def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir=config.MODEL_DIR,
+                best=False,
+                dry_run=False):
     g_model, l_model, f_model = models
 
     model_subdir = 'model_' + config.WRITER_NAME.split('/')[-1]
@@ -458,10 +460,10 @@ def save_models(params, models, num_epochs, root_dir=config.ROOT_PATH, model_dir
         g_path = os.path.join(folder_path, f'global_{params["GLOBAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
         l_path = os.path.join(folder_path, f'local_{params["LOCAL_MODEL_NAME"]}_{num_epochs}epoch.pth')
         f_path = os.path.join(folder_path, f'fusion_{params["FUSION_MODEL_NAME"]}_{num_epochs}epoch.pth')
-
-    torch.save(g_model.state_dict(), g_path)
-    torch.save(l_model.state_dict(), l_path)
-    torch.save(f_model.state_dict(), f_path)
+    if dry_run is False:
+        torch.save(g_model.state_dict(), g_path)
+        torch.save(l_model.state_dict(), l_path)
+        torch.save(f_model.state_dict(), f_path)
     return [g_path, l_path, f_path]
 
 
@@ -477,9 +479,9 @@ def save_checkpoints(models, epoch, optimizers, losses):
         os.makedirs(folder_path)
 
     # overwrite the latest epoch
-    g_path = os.path.join(folder_path, g_ckpt_name)
-    l_path = os.path.join(folder_path, l_ckpt_name)
-    f_path = os.path.join(folder_path, f_ckpt_name)
+    g_path = os.path.join(folder_path, g_ckpt_name_prefix)
+    l_path = os.path.join(folder_path, l_ckpt_name_prefix)
+    f_path = os.path.join(folder_path, f_ckpt_name_prefix)
 
     torch.save({
         'epoch': epoch,
@@ -501,9 +503,9 @@ def save_checkpoints(models, epoch, optimizers, losses):
     }, f_path)
 
     # also save this epoch
-    g_path = os.path.join(folder_path, g_ckpt_name + f"_{epoch}")
-    l_path = os.path.join(folder_path, l_ckpt_name + f"_{epoch}")
-    f_path = os.path.join(folder_path, f_ckpt_name + f"_{epoch}")
+    g_path = os.path.join(folder_path, g_ckpt_name_prefix + f"_{epoch}")
+    l_path = os.path.join(folder_path, l_ckpt_name_prefix + f"_{epoch}")
+    f_path = os.path.join(folder_path, f_ckpt_name_prefix + f"_{epoch}")
 
     torch.save({
         'epoch': epoch,
@@ -541,7 +543,7 @@ def resume_checkpoints(params):
         f_feature_size += 3
     f_model = SimpleCLF(input_size=f_feature_size).to(device)
 
-    ckpt_names = [g_ckpt_name, l_ckpt_name, f_ckpt_name]
+    ckpt_names = [g_ckpt_name_prefix, l_ckpt_name_prefix, f_ckpt_name_prefix]
     models = [g_model, l_model, f_model]
     epoch = 0
     for name, model in zip(ckpt_names, models):

@@ -2,7 +2,7 @@ import torch
 #from ray import tune
 import os
 
-trial = 3
+trial = 1
 HYPERSEARCH = False
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -69,7 +69,7 @@ params_hypersearch = {
 
 # config of single pass
 params = {
-    "NUM_EPOCHS": 1,
+    "NUM_EPOCHS": 100,
     "BATCH_SIZE": 16,
     "FINE_TUNE": True,
     "FINE_TUNE_START_EPOCH": 5,
