@@ -138,8 +138,8 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5):
             ####################################
             fm_global = g_activation['fm']  # get feature map
             local_patches = attention_gen_patches(inputs, fm_global, params['HEATMAP_THRESHOLD'])
-            l_outputs = l_model(local_patches).to(device)
-
+            l_inputs = F.resize(local_patches, l_input_size) #Capsnet wont work otherwise, size too big
+            l_outputs = l_model(l_inputs).to(device)
             ####################################
             # Fusion branch
             ####################################
@@ -176,7 +176,7 @@ def train_model(params, train_loader, val_loader, criterions, save_freq=5):
                 
             if l_use_model_loss:
                 reconstructions = None
-                l_loss = l_model.loss(local_patches, l_outputs, labels, mean_error=True, reconstruct=config.RECONSTRUCT)
+                l_loss = l_model.loss(l_inputs, l_outputs, labels, mean_error=True, reconstruct=config.RECONSTRUCT)
                 
                 if type(l_loss) == tuple and len(l_loss) == 2:
                     reconstructions = l_loss[1]

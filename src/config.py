@@ -70,7 +70,7 @@ params_hypersearch = {
 # config of single pass
 params = {
     "NUM_EPOCHS": 100,
-    "BATCH_SIZE": 32,
+    "BATCH_SIZE": 16,
     "FINE_TUNE": True,
     "FINE_TUNE_START_EPOCH": 5,
     "FINE_TUNE_STEP_WISE": True,
@@ -78,12 +78,12 @@ params = {
     "VAL_SIZE": 0.05,
     "HEATMAP_THRESHOLD":  0.7,
     "GLOBAL_LEARNING_RATE": 1e-4,
-    "LOCAL_LEARNING_RATE": 1e-4,
+    "LOCAL_LEARNING_RATE": 1e-3,
     "FUSION_LEARNING_RATE": 1e-4,
     "USE_CLASS_WEIGHT": True,
     "USE_EXTRA_INPUT": True,
-    "GLOBAL_MODEL_NAME": 'resnet50',
-    "LOCAL_MODEL_NAME": 'resnet50',
+    "GLOBAL_MODEL_NAME": 'densenet',
+    "LOCAL_MODEL_NAME": 'capsnet',
     "FUSION_MODEL_NAME": 'fusion',
     "AUGMENTATIONS": ['rot', 'hflip']  # see dataset.make_data_transform() for options
 }
