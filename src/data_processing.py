@@ -86,7 +86,6 @@ def make_train_test_split(df_data,
 
 
 def make_train_val_split(params, df):
-    print(type(params['VAL_SIZE']))
     gss = GroupShuffleSplit(n_splits=1, test_size=params['VAL_SIZE'], random_state=config.SEED)
     for train_idx, test_idx in gss.split(df, groups=df['Patient ID']):
         df_train, df_val = df[df.index.isin(train_idx)], df[df.index.isin(test_idx)]

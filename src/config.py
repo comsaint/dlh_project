@@ -2,7 +2,7 @@ import torch
 #from ray import tune
 import os
 
-trial = 1
+trial = 2
 HYPERSEARCH = False
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -82,8 +82,8 @@ params = {
     "FUSION_LEARNING_RATE": 1e-4,
     "USE_CLASS_WEIGHT": True,
     "USE_EXTRA_INPUT": True,
-    "GLOBAL_MODEL_NAME": 'mobilenet',
-    "LOCAL_MODEL_NAME": 'mobilenet',
+    "GLOBAL_MODEL_NAME": 'densenet',
+    "LOCAL_MODEL_NAME": 'densenet',
     "FUSION_MODEL_NAME": 'fusion',
     "AUGMENTATIONS": ['rot', 'hflip'],  # see dataset.make_data_transform() for options
     "RESUME": True
